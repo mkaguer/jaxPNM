@@ -24,7 +24,7 @@ def cubic(shape, spacing=1, connectivity=6, node_prefix='node', edge_prefix='edg
     shape = jnp.concatenate((shape, jnp.ones(3 - shape.size, dtype=int))).astype(int)
     arr = jnp.empty(shape).reshape((shape[0], shape[1], shape[2]))
     
-    spacing = jnp.asarray(spacing, dtype=jnp.float64)
+    spacing = jnp.asarray(spacing, dtype=jnp.float32)
     if spacing.size == 2:
         spacing = jnp.concatenate((spacing, jnp.ones(1)))
     spacing = jnp.ones(3, dtype=float) * jnp.array(spacing, ndmin=1)
