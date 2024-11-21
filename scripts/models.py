@@ -159,3 +159,37 @@ def create_adjacency_matrix(net, weights=None, fmt='coo', triu=False, drop_zeros
         return js.BCSR.from_bcoo(coo_matrix)
     else:
         raise ValueError(f"Format {fmt} is not supported for JAX sparse matrices")
+
+
+def graph_laplacian(adj_matrix, fmt='csr'):
+    """
+    Compute the graph Laplacian for a JAX sparse adjacency matrix.
+
+    Parameters:
+    adj_matrix (js.BCOO): JAX sparse adjacency matrix.
+
+    fmt : str, optional
+        The sparse storage format to return. Options are:
+            - `'coo'`: Coordinate format (default).
+            - `'csr'`: Compressed Sparse Row format.
+
+    Returns:
+    laplacian (js.BCOO or js.BCSR): The Laplacian matrix.
+    """
+    # Compute the degree vector by summing the adjacency matrix along columns
+    diag = adj_matrix.sum(axis=0).todense()  # should by Np long!
+
+    # Create the degree matrix in sparse form (diagonal matrix)
+    rows = jnp.arange(len(diag))
+    diag_matrix = js.BCOO((diag, jnp.stack([rows, rows]).T), shape=adj_matrix.shape)
+
+    # Laplacian: D - A
+    laplacian = diag_matrix - adj_matrix
+
+    # Convert to desired format
+    if fmt == 'coo':
+        return laplacian
+    elif fmt == 'csr':
+        return js.BCSR.from_bcoo(laplacian)
+    else:
+        raise ValueError(f"Format {fmt} is not supported for JAX sparse matrices")
