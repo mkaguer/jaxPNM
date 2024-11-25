@@ -98,28 +98,28 @@ def apply_BC(net):
         Np = len(net['pore.coords'])
         # get average of diagonal, note this only works for 'coo' format
         isdiag = A.indices[:, 0] == A.indices[:, 1]
-        diag = A.data[isdiag]
+        # diag = A.data[isdiag]
+        diag = A.data[0:Np]  # this only works for 'coo' format
         f = diag.mean()
         # Update b (impose bc values)
-        ind = jnp.isfinite(net['pore.bc.value'])
-        b = b.at[ind].set(net['pore.bc.value'][ind] * f)
+        bc_values = net['pore.bc.value']
+        # FIXME: do jnp.isnan(bc_values) once!!
+        b = jnp.where(jnp.isnan(bc_values), b, bc_values*f)  # avoid boolean masks!
         # Update b (subtract quantities from b to keep A symmetric)
         x_BC = jnp.zeros_like(b)
-        x_BC = x_BC.at[ind].set(net['pore.bc.value'][ind])  # do we multiply by f?
-        temp = b[~ind] - (A @ x_BC)[~ind]
-        b = b.at[~ind].set(temp)
+        x_BC = jnp.where(jnp.isnan(bc_values), b, bc_values)
+        temp = b - A @ x_BC
+        b = jnp.where(jnp.isnan(bc_values), temp, b)
         # update A
-        P_bc = jnp.where(ind)[0]
+        P_bc = jnp.where(jnp.isnan(bc_values), jnp.nan, jnp.arange(0, Np))
         mask = jnp.isin(A.indices[:, 0], P_bc) | jnp.isin(A.indices[:, 1], P_bc)
         # remove entries from A for all BC rows/cols
-        A_data = A.data.at[mask].set(0)
+        A_data = jnp.where(mask, 0, A.data)
         # Add diagonal entries back into A
         mask = isdiag * jnp.isin(A.indices[:, 0], jnp.array(P_bc))
-        A_data = A_data.at[mask].set(jnp.ones(sum(mask), dtype=float) * f)
-        # remove zero elements
-        mask = jnp.where(A_data == 0)[0]
-        A_indices = jnp.delete(A.indices, mask, axis=0)
-        A_data = jnp.delete(A_data, mask, axis=0)
+        A_data = jnp.where(mask, f, A_data)
+        A_indices = A.indices
+        # Cannot remove zeros here to jax transform this function
         # Finally, update A in BCOO format
         A = js.BCOO((A_data, A_indices), shape=(Np, Np))
         
