@@ -34,20 +34,25 @@ net['throat.viscosity'] = jnp.ones(Nt) * 1e-3
 
 # set BCs
 pores = jnp.where(net['pore.left'])[0]
-pnm.simulations.set_BC(net, pores=0, bctype='value', bcvalues=1.0, mode='overwrite')
+pnm.simulations.set_BC(net, pores=pores, bctype='value', bcvalues=1.0, mode='overwrite')
 pores = jnp.where(net['pore.right'])[0]
-pnm.simulations.set_BC(net, pores=3, bctype='value', bcvalues=0.0, mode='add')
-xx
+pnm.simulations.set_BC(net, pores=pores, bctype='value', bcvalues=0.0, mode='add')
+
 # add target value
-net['target'] = 0.00242071
+net['target'] = 0.01286327
 
 
 def f(D, net):
 
     # update D
-    net['throat.diameter'] = D
+    net['pore.diameter'] = D
+    # update models that depend on D
+    net['throat.diameter'] = pnm.models.throat_diameter(net)
+    # net['throat.conduit_length'] = pnm.models.spheres_and_cylinders(net)  # Nt by 3
+    # conduit lengths updated in hydraulic size factor automatically
+    net['throat.hydraulic_size_factors'] = pnm.models.hydraulic_size_factor(net)
     # calculate conductance G
-    G = pnm.models.calc_conductance(net)
+    G = pnm.models.generic_hydraulic(net)
     net['throat.conductance'] = G
     # build A and b
     A = pnm.simulations.build_A(net)
@@ -77,7 +82,7 @@ def f(D, net):
 
 # test f works
 key = random.PRNGKey(0)  # make results reproducible
-D = random.uniform(key, shape=(3,))
+D = random.uniform(key, shape=(4,))
 print(f(D, net))
 
 # Define the gradient of f(x)
@@ -89,7 +94,7 @@ def dydt(t, y, net):
     return -grad_f(y, net)
 
 # Initial condition
-y0 = jnp.array([0.5, 0.3, 0.8])
+y0 = jnp.array([0.4, 0.3, 0.3, 0.4])
 t0, t1 = 0, 1000 # Time span (we treat the optimization as a "time" evolution)
 # Choose an ODE solver
 solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
@@ -101,10 +106,10 @@ solution = dfx.diffeqsolve(term, solver, t0=t0, t1=t1, dt0=1, y0=y0, args=net)
 # The final x value after "evolving" it toward the minimum
 x_min = solution.ys[-1]
 print(f"Minimum found at x = {x_min}, f(x) = {f(x_min, net)}")
-
+xx
 # visualize loss as a function of one of the parameters!
 D_vals = jnp.linspace(0.0, 1.0, 100)
-losses = jnp.array([f(jnp.array([D, 0.3, 0.8]), net) for D in D_vals])
+losses = jnp.array([f(jnp.array([D, 0.3, 0.3, 0.8]), net) for D in D_vals])
 
 plt.plot(D_vals, losses)
 plt.xlabel("D[0]")
