@@ -22,26 +22,22 @@ config.update("jax_enable_x64", True)
 
 # create network
 spacing = 1
-coords = jnp.array([[0, 0, 0],
-                    [1, 0, 0],
-                    [2, 0, 0],
-                    [3, 0, 0]])
-conns = jnp.array([[0, 1],
-                   [1, 2],
-                   [2, 3]])
-net = {'pore.coords': coords, 'throat.conns': conns}
+net = pnm.network.make_cubic_network(shape=[4, 1, 1], spacing=1, connectivity=6)
 
-# add properties to network
-Nt = conns.shape[0]
-net['throat.length'] = jnp.ones(Nt) * spacing
+# get Nt and Np
+Nt = len(net['throat.conns'])
+Np = len(net['pore.coords'])
+
+# add "constant" properties to network
+net['pore.viscosity'] = jnp.ones(Np) * 1e-3
 net['throat.viscosity'] = jnp.ones(Nt) * 1e-3
-net['throat.diameter'] = jnp.ones(Nt) * 0.5  # this will get overwritten
 
 # set BCs
+pores = jnp.where(net['pore.left'])[0]
 pnm.simulations.set_BC(net, pores=0, bctype='value', bcvalues=1.0, mode='overwrite')
+pores = jnp.where(net['pore.right'])[0]
 pnm.simulations.set_BC(net, pores=3, bctype='value', bcvalues=0.0, mode='add')
-
-
+xx
 # add target value
 net['target'] = 0.00242071
 
