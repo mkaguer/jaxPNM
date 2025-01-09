@@ -1,5 +1,5 @@
 """
-The goal is to write a script that fits a cubic network to have 
+The goal is to write a script that fits a cubic network to have
 desired permeability using JAX and Diffrax.
 
 Created by: Mike McKague
@@ -10,7 +10,6 @@ import jax
 import jax.numpy as jnp
 import jax.experimental.sparse as js
 import matplotlib.pyplot as plt
-import models as mods
 import diffrax as dfx
 import mypnmlib as pnm
 import os
@@ -70,6 +69,12 @@ def f(D, net):
     # calc loss
     Q_target = net['target']
     loss = (Q - Q_target)**2
+    # calc penalty
+    lbd = jnp.maximum(0.0 - D, 0)
+    ubd = jnp.maximum(D - 1.0, 0)
+    penalty = jnp.sum(lbd**2 + ubd**2)
+    # add penalty to loss
+    loss += penalty
 
     return loss
 
@@ -89,13 +94,25 @@ def dydt(t, y, net):
 
 # Initial condition
 y0 = jnp.array([0.5, 0.3, 0.8])
-t0, t1 = 0, 10  # Time span (we treat the optimization as a "time" evolution)
+t0, t1 = 0, 1000 # Time span (we treat the optimization as a "time" evolution)
 # Choose an ODE solver
 solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
+# solver = dfx.Euler()
 # Define the ODE problem
 term = dfx.ODETerm(dydt)
 # Solve the ODE, treating time as "iterations" for optimization
-solution = dfx.diffeqsolve(term, solver, t0=t0, t1=t1, dt0=1e-2, y0=y0, args=net)
+solution = dfx.diffeqsolve(term, solver, t0=t0, t1=t1, dt0=1, y0=y0, args=net)
 # The final x value after "evolving" it toward the minimum
 x_min = solution.ys[-1]
 print(f"Minimum found at x = {x_min}, f(x) = {f(x_min, net)}")
+
+# visualize loss as a function of one of the parameters!
+D_vals = jnp.linspace(0.0, 1.0, 100)
+losses = jnp.array([f(jnp.array([D, 0.3, 0.8]), net) for D in D_vals])
+
+plt.plot(D_vals, losses)
+plt.xlabel("D[0]")
+plt.ylabel("Loss")
+plt.title("Loss Landscape Along D[0]")
+plt.show()
+
