@@ -38,8 +38,8 @@ net['throat.viscosity'] = jnp.ones(Nt) * 1e-3
 net['throat.diameter'] = jnp.ones(Nt) * 0.5  # this will get overwritten
 
 # set BCs
-pnm.simulations.set_BC(net, pores=0, bctype='value', bcvalues=1.0, mode='overwrite')
-pnm.simulations.set_BC(net, pores=3, bctype='value', bcvalues=0.0, mode='add')
+pnm.simulations.set_BC(net, pores=jnp.array([0]), bctype='value', bcvalues=1.0, mode='overwrite')
+pnm.simulations.set_BC(net, pores=jnp.array([3]), bctype='value', bcvalues=0.0, mode='add')
 
 
 # add target value
