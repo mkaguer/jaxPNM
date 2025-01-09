@@ -6,17 +6,26 @@ Created on Mon Jan  6 13:22:34 2025
 """
 
 import openpnm as op
+from jax import config
 import numpy as np
 import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
+
 op.visualization.set_mpl_style()
 
+config.update("jax_enable_x64", True)
+
+# create network
+spacing = 1e-4
+
 np.random.seed(5)
-pn = op.network.Cubic(shape=[25, 25, 1], spacing=1e-4)
+spacing=1e-4
+shape=[20, 20, 1]
+pn = op.network.Cubic(shape=shape, spacing=spacing)
 air = op.phase.Air(network=pn)
 key = jax.random.PRNGKey(0)
-D = jax.random.uniform(key, shape=(pn.Nt,)) * 1e-4
+D = jax.random.uniform(key, shape=(pn.Nt,)) * spacing
 D = np.array(D)
 pn['throat.diameter'] = D
 
@@ -32,15 +41,15 @@ air.add_model(propname='throat.entry_pressure',
 
 Pc = air['throat.entry_pressure']
 
-
-pn['pore.volume'] = 1
+# FIXME: we need models here 
+pn['pore.volume'] = 1 
 pn['throat.volume'] = 1
-# pn['throat.volume'] = 4/3 * np.pi * pn['pore.diameter'] ** 3
 
 mip = op.algorithms.Drainage(network=pn, phase=air)
-mip.set_inlet_BC(pores=pn.pores('surface'))  # mercury invades from all sides
+mip.set_inlet_BC(pores=pn.pores('left'))  # invasions starts from the left side
 mip.run()
-data = mip.pc_curve()
+pc_mat = np.arange(100, 30000,100 )
+data = mip.pc_curve(pressures=pc_mat)
 plt.plot(data.pc, data.snwp, 'b-o')
 plt.xlabel('Capillary Pressure [Pa]')
 plt.ylabel('Non-Wetting Phase Saturation');

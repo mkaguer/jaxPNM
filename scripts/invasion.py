@@ -11,7 +11,6 @@ import jax
 import jax.numpy as jnp
 import mypnmlib as pnm
 import matplotlib.pyplot as plt
-# import models
 
 
 os.environ["JAX_PLATFORMS"] = "cpu"
@@ -19,7 +18,7 @@ config.update("jax_enable_x64", True)
 
 # create network
 spacing = 1e-4
-net = pnm.network.make_cubic_network(shape=[25, 25, 1],spacing=spacing)
+net = pnm.network.make_cubic_network(shape=[20, 20, 1],spacing=spacing)
 
 
 # coords = jnp.array([[5.0e-07, 5.0e-07, 5.0e-07],
