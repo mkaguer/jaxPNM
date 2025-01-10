@@ -106,9 +106,9 @@ solution = dfx.diffeqsolve(term, solver, t0=t0, t1=t1, dt0=1, y0=y0, args=net)
 # The final x value after "evolving" it toward the minimum
 x_min = solution.ys[-1]
 print(f"Minimum found at x = {x_min}, f(x) = {f(x_min, net)}")
-xx
+
 # visualize loss as a function of one of the parameters!
-D_vals = jnp.linspace(0.0, 1.0, 100)
+D_vals = jnp.linspace(0.01, 1.0, 100)
 losses = jnp.array([f(jnp.array([D, 0.3, 0.3, 0.8]), net) for D in D_vals])
 
 plt.plot(D_vals, losses)
@@ -116,4 +116,6 @@ plt.xlabel("D[0]")
 plt.ylabel("Loss")
 plt.title("Loss Landscape Along D[0]")
 plt.show()
+# at 0.3 changes drastically because throat size switches to depend on other
+# neighbour pore. Therefore, changing D[0] aftger 0.3 has a smaller gradient!
 
