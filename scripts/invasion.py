@@ -29,30 +29,37 @@ Np = 16#net['pore.coords'].shape[0]
 # net['throat.viscosity'] = jnp.ones(24) * 1e-3
 key = jax.random.PRNGKey(0)
 
-net['throat.length'] = jnp.ones(24) * spacing
-net['throat.diameter'] = jax.random.uniform(key, shape=(24,)) *0.3 * spacing # FIXME: needs random diameter
+# net['throat.length'] = jnp.ones(24) * spacing
+# net['throat.diameter'] = jax.random.uniform(key, shape=(24,)) *0.3 * spacing # FIXME: needs random diameter
 
-net['pore.contact_angle'] = jnp.ones(24) * 120 # for air
-net['pore.surface_tension'] = jnp.ones(24) * 0.072
-pc = pnm.models.washburn(net)
-net['throat.entry_pressure'] = pc
-# th_ind = pnm.models.find_neighbor_throats(net, pores=[0,1])
-inlet_pores = jnp.array([0, 1, 2, 3]) # these are the pores at the left boundary
+# net['pore.contact_angle'] = jnp.ones(24) * 120 # for air
+# net['pore.surface_tension'] = jnp.ones(24) * 0.072
+# pc = pnm.models.washburn(net)
+# net['throat.entry_pressure'] = pc
+# # th_ind = pnm.models.find_neighbor_throats(net, pores=[0,1])
+# inlet_pores = jnp.array([0, 1, 2, 3]) # these are the pores at the left boundary
 # net['pore.inlet'] = inlet_pores
+def R_squared(y, y_target):
+
+    SSE = jnp.sum((y - y_target)**2)
+    SST = jnp.sum((y_target - jnp.average(y_target))**2)
+    R2 = 1 - SSE/SST
+
+    return R2
 
 def run_invasion(net, pressures):
    
     vp = net['pore.volume']
     vt = net['throat.volume']
-    total_volume = jnp.sum(vp + vt)
+    total_volume = jnp.sum(vp) + jnp.sum(vt)
     invaded_throats = jnp.zeros(24, bool)
     invaded_pores = net['pore.left']
-    count = jnp.sum(net['throat.sat'])
+    count = jnp.sum(invaded_throats)
     invading_pressure = 100 # Pa
     # pc_mat = []
     # pc_mat.append(invading_pressure)
     # sat_mat = [0]
-    sat_array = jnp.zeros_like(pressures)
+    sat_array = jnp.zeros_like(pressures, dtype=float)
     # while True:
     for i, invading_pressure in enumerate(pressures):
         # invading_pressure += 3000
@@ -67,76 +74,111 @@ def run_invasion(net, pressures):
             count = jnp.sum(invaded_throats)
             if count == old_count:
                 break
-            invaded_pores = invaded_pores.at(net['throat.conns'][invaded_throats][:,0]).set(True)
-            invaded_pores = invaded_pores.at(net['throat.conns'][invaded_throats][:,1]).set(True)
+            invaded_pores = invaded_pores.at[net['throat.conns'][invaded_throats][:,0]].set(True)
+            invaded_pores = invaded_pores.at[net['throat.conns'][invaded_throats][:,1]].set(True)
             # new_pores_1d = net['throat.conns'][throat_newly_invaded_ind]
             # all_invaded_pores = jnp.concatenate([new_pores_1d, invaded_pores])
             # invaded_pores = jnp.unique(all_invaded_pores) # removing duplicate pores
         print(f'new sat is: {count}')
         sat = (jnp.sum(vt[invaded_throats]) + jnp.sum(vp[invaded_pores])) / total_volume
-        sat_array = sat_array.at(i).set(sat)
+         
+        sat_array = sat_array.at[i].set(sat)
         # pc_mat.append(invading_pressure)
         # sat_mat.append(count / 24)
         # if count > 0.85 * Nt:
         #     break
     return sat_array
 
-pressures = jnp.arange(100,18000, 3000)
-pc_mat, sat_mat = run_invasion(net, pressures)
-target_sat = sat_mat
 
-def calc_loss(D, net):
-    net['throat.diameter'] = D
-    pc =  pnm.models.washburn(net)
-    net['throat.entry_pressure'] = pc
-    
-    pc_mat_new, sat_mat_new = run_invasion(net, pressures)
-    loss = jnp.sum(jnp.absolute(target_sat - sat_mat_new)) / 24
-    lbd = jnp.maximum(0.0 - D, 0)
-    ubd = jnp.maximum(D - 1.0, 0)
-    penalty = jnp.sum(lbd**2 + ubd**2)
-    # add penalty to l
-    loss += penalty
+
+
+def f(D, net, sat_target, pressures):
+
+    # set pore diameter
+    net['pore.diameter'] = D
+    # regenerate geometry models
+    net['throat.diameter'] = pnm.models.throat_diameter(network=net)
+    net['throat.length'] = pnm.models.throat_length(network=net)
+    net['pore.volume'] = pnm.models.sphere(network=net)
+    net['throat.total_volume'] = pnm.models.cylinder(network=net)
+    net['throat.lens_volume'] = pnm.models.lens(network=net)
+    props = ['throat.total_volume', 'throat.lens_volume']
+    net['throat.volume'] = pnm.models.difference(network=net, props=props)
+    # add entry pressure model
+    net['throat.contact_angle'] = 120
+    net['throat.surface_tension'] = 0.072
+    Pc = pnm.models.washburn(network=net)
+    net['throat.entry_pressure'] = Pc
+    # run invasion simulation
+    sat = run_invasion(net, pressures)
+    # calculate R2
+    R2 = R_squared(sat, sat_target)
+    # calculate penalty
+    penalty = ...  # FIXME: add penalty to loss to fix diameters between 0 and 1
+    # calculate loss
+    loss = R2 + penalty
+
     return loss
 
-testD = jnp.ones(shape=(24,)) * 0.15 * spacing
-loss = calc_loss(testD, net)
-fig, ax = plt.subplots()
+key = jax.random.PRNGKey(0)
 
-ax.plot(pc_mat, sat_mat)
-ax.set_ylabel('saturation')
-ax.set_xlabel('pressure [pa]')
+D = jax.random.uniform(key, shape=(16,)) *0.3 * spacing
+# D = jnp.ones(shape=(16,)) * 0.15 * spacing
+net['pore.diameter'] = D
+# regenerate geometry models
+net['throat.diameter'] = pnm.models.throat_diameter(net)
+net['throat.length'] = pnm.models.throat_length(net)
+net['pore.volume'] = pnm.models.sphere(net)
+net['throat.total_volume'] = pnm.models.cylinder(net)
+net['throat.lens_volume'] = pnm.models.lens(network=net)
+props = ['throat.total_volume', 'throat.lens_volume']
+net['throat.volume'] = pnm.models.difference(network=net, props=props)
+# add entry pressure model
+net['throat.contact_angle'] = 120
+net['throat.surface_tension'] = 0.072
+Pc = pnm.models.washburn(network=net)
+net['throat.entry_pressure'] = Pc
+# set the range of pressures to be investigated
+pressures = jnp.arange(1000,101000, 10000)
+# run invasion simulation
+sat = run_invasion(net, pressures)
+# loss = calc_loss(testD, net)
+# fig, ax = plt.subplots()
 
-# Define the gradient of f(x)
-grad_f = jax.grad(calc_loss)
-print(grad_f(testD, net))
+# ax.plot(pc_mat, sat_mat)
+# ax.set_ylabel('saturation')
+# ax.set_xlabel('pressure [pa]')
 
-def dydt(t, y, net):
-    return -grad_f(y, net)
+# # Define the gradient of f(x)
+# grad_f = jax.grad(calc_loss)
+# print(grad_f(testD, net))
 
-# Initial condition
-y0 = jnp.ones(shape=(24,)) * 0.15 * spacing
-t0, t1 = 0, 1000  # Time span (we treat the optimization as a "time" evolution)
+# def dydt(t, y, net):
+#     return -grad_f(y, net)
 
-# Choose an ODE solver
-solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
+# # Initial condition
+# y0 = jnp.ones(shape=(24,)) * 0.15 * spacing
+# t0, t1 = 0, 1000  # Time span (we treat the optimization as a "time" evolution)
 
-# Define the ODE problem
-term = dfx.ODETerm(dydt)
+# # Choose an ODE solver
+# solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
 
-# Pass the net_static and net as a tuple to the args
-solution = dfx.diffeqsolve(
-    term,
-    solver,
-    t0=t0,
-    t1=t1,
-    dt0=1,
-    y0=y0,
-    args=net
-)
-# The final x value after "evolving" it toward the minimum
-x_min = solution.ys[-1]
-print(f"Minimum found at x = {x_min}, f(x) = {calc_loss(x_min, net)}")
+# # Define the ODE problem
+# term = dfx.ODETerm(dydt)
+
+# # Pass the net_static and net as a tuple to the args
+# solution = dfx.diffeqsolve(
+#     term,
+#     solver,
+#     t0=t0,
+#     t1=t1,
+#     dt0=1,
+#     y0=y0,
+#     args=net
+# )
+# # The final x value after "evolving" it toward the minimum
+# x_min = solution.ys[-1]
+# print(f"Minimum found at x = {x_min}, f(x) = {calc_loss(x_min, net)}")
 
 # # visualize loss as a function of one of the parameters!
 # D_vals = jnp.linspace(0.0, 1.0, 100)
