@@ -22,36 +22,43 @@ config.update("jax_enable_x64", True)
 
 # create network
 spacing = 1
-coords = jnp.array([[0, 0, 0],
-                    [1, 0, 0],
-                    [2, 0, 0],
-                    [3, 0, 0]])
-conns = jnp.array([[0, 1],
-                   [1, 2],
-                   [2, 3]])
-net = {'pore.coords': coords, 'throat.conns': conns}
+net = pnm.network.make_cubic_network(shape=[10, 10, 10], spacing=1, connectivity=6)
 
-# add properties to network
-Nt = conns.shape[0]
-net['throat.length'] = jnp.ones(Nt) * spacing
+# get Nt and Np
+Nt = len(net['throat.conns'])
+Np = len(net['pore.coords'])
+
+# add "constant" properties to network
+net['pore.viscosity'] = jnp.ones(Np) * 1e-3
 net['throat.viscosity'] = jnp.ones(Nt) * 1e-3
-net['throat.diameter'] = jnp.ones(Nt) * 0.5  # this will get overwritten
 
 # set BCs
-pnm.simulations.set_BC(net, pores=jnp.array([0]), bctype='value', bcvalues=1.0, mode='overwrite')
-pnm.simulations.set_BC(net, pores=jnp.array([3]), bctype='value', bcvalues=0.0, mode='add')
+pores = jnp.where(net['pore.left'])[0]
+pnm.simulations.set_BC(net, pores=pores, bctype='value', bcvalues=1.0, mode='overwrite')
+pores = jnp.where(net['pore.right'])[0]
+pnm.simulations.set_BC(net, pores=pores, bctype='value', bcvalues=0.0, mode='add')
 
+# add pores to calculate rate
+# FIXME: did this b/c I cannot do jnp.where inside f!
+net['rate_pores'] = pores
 
 # add target value
-net['target'] = 0.00242071
+# net['target'] = 0.01286327
+# net['target'] = 0.00262833
+net['target'] = 0.99425941
 
 
 def f(D, net):
 
     # update D
-    net['throat.diameter'] = D
+    net['pore.diameter'] = D  # FIXME: not enforcine size of arrays!
+    # update models that depend on D
+    net['throat.diameter'] = pnm.models.throat_diameter(net)
+    # net['throat.conduit_length'] = pnm.models.spheres_and_cylinders(net)  # Nt by 3
+    # conduit lengths updated in hydraulic size factor automatically
+    net['throat.hydraulic_size_factors'] = pnm.models.hydraulic_size_factor(net)
     # calculate conductance G
-    G = pnm.models.calc_conductance(net)
+    G = pnm.models.generic_hydraulic(net)
     net['throat.conductance'] = G
     # build A and b
     A = pnm.simulations.build_A(net)
@@ -64,8 +71,12 @@ def f(D, net):
     A = js.BCSR.from_bcoo(A)  # need CSR format for linalg.spsolve!
     A.indptr = A.indptr.astype('int64')  # FIXME: can I remove this line?
     x = js.linalg.spsolve(A.data, A.indices, A.indptr, b, tol=1e-6)
+    # FIXME: write function to calculate Q
     # calc flow rate
-    Q = -G[-1] * (x[-1] - x[-2])
+    # pores = jnp.where(net['pore.right'])[0]
+    pores = net['rate_pores']
+    Q = -1*pnm.simulations.rate(net, x, pores=pores)[0]
+    # print(Q)
     # calc loss
     Q_target = net['target']
     loss = (Q - Q_target)**2
@@ -81,38 +92,44 @@ def f(D, net):
 
 # test f works
 key = random.PRNGKey(0)  # make results reproducible
-D = random.uniform(key, shape=(3,))
+D = random.uniform(key, shape=(Np,))
 print(f(D, net))
 
 # Define the gradient of f(x)
 grad_f = jax.grad(f)
-print(grad_f(D, net))
+# print(grad_f(D, net))
 
 # Define the ODE system for gradient flow: dx/dt = -grad(f)
 def dydt(t, y, net):
     return -grad_f(y, net)
 
 # Initial condition
-y0 = jnp.array([0.5, 0.3, 0.8])
-t0, t1 = 0, 1000 # Time span (we treat the optimization as a "time" evolution)
+key = random.PRNGKey(1)  # make results reproducible
+y0 = random.uniform(key, shape=(Np,))
+t0, t1 = 0, 10 # Time span (we treat the optimization as a "time" evolution)
 # Choose an ODE solver
-solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
-# solver = dfx.Euler()
+# solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
+solver = dfx.Euler()
 # Define the ODE problem
 term = dfx.ODETerm(dydt)
 # Solve the ODE, treating time as "iterations" for optimization
 solution = dfx.diffeqsolve(term, solver, t0=t0, t1=t1, dt0=1, y0=y0, args=net)
 # The final x value after "evolving" it toward the minimum
 x_min = solution.ys[-1]
-print(f"Minimum found at x = {x_min}, f(x) = {f(x_min, net)}")
+print(f"Avg D = {jnp.average(x_min)}")
+print(f"Min D = {jnp.min(x_min)}")
+print(f"Max D = {jnp.max(x_min)}")
+print(f"Loss = {f(x_min, net)}")
 
 # visualize loss as a function of one of the parameters!
-D_vals = jnp.linspace(0.0, 1.0, 100)
-losses = jnp.array([f(jnp.array([D, 0.3, 0.8]), net) for D in D_vals])
+D_vals = jnp.linspace(0.01, 1.0, 100)
+losses = jnp.array([f(jnp.array([D, 0.3, 0.3, 0.8]), net) for D in D_vals])
 
 plt.plot(D_vals, losses)
 plt.xlabel("D[0]")
 plt.ylabel("Loss")
 plt.title("Loss Landscape Along D[0]")
 plt.show()
+# at 0.3 changes drastically because throat size switches to depend on other
+# neighbour pore. Therefore, changing D[0] aftger 0.3 has a smaller gradient!
 
