@@ -30,33 +30,30 @@ def run_invasion(net, pressures):
     sat_array = jnp.zeros_like(pressures, dtype=float)
     # loop through invading pressures
     for i, invading_pressure in enumerate(pressures):
-        # while True:
-        for j in range(5):
+        # ensure old_count does not equal count
+        old_count = -1
+        while count != old_count:
             # reset old_count
             old_count = count
             # find ALL invadable throats
             invadable = net['throat.entry_pressure'] < invading_pressure
             # find throats connected to invaded pores
-            invaded_pores = jnp.where(invaded_pores, jnp.arange(Np), -1)
-            connected = pnm.models.find_neighbor_throats(net, invaded_pores)
+            pores = jnp.where(invaded_pores, jnp.arange(Np), -1)
+            connected = pnm.models.find_neighbor_throats(net, pores)
             # find connected AND invaded throats, newly invaded
             invaded = jnp.logical_and(invadable, connected)
             # add newly invaded throats
             invaded_throats += invaded
             # update count
             count = jnp.sum(invaded_throats)
-            '''
-            if count == old_count:
-                break
-            '''
-            # FIXME: add helper method to mypnmlib
-            
-            invaded_pores = pnm.models.find_neighbour_pores(net, invaded_throats)
-            # invaded_pores = invaded_pores.at[net['throat.conns'][invaded_throats][:, 0]].set(True)
-            # invaded_pores = invaded_pores.at[net['throat.conns'][invaded_throats][:, 1]].set(True)
+            # find pores neighbouring ALL invaded throats
+            throats = jnp.where(invaded_throats, jnp.arange(Nt), -1)
+            pores = pnm.models.find_neighbor_pores(net, throats)
+            # update list of invaded pores
+            invaded_pores += pores
         # calculate invaded volume
-        invaded_pore_volume = jnp.sum(vp[invaded_pores])
-        invaded_throat_volume = jnp.sum(vt[invaded_throats])
+        invaded_pore_volume = jnp.sum(vp * invaded_pores)
+        invaded_throat_volume = jnp.sum(vt * invaded_throats)
         invaded_volume = invaded_pore_volume + invaded_throat_volume
         # calculate and update saturation
         sat = invaded_volume / total_volume
@@ -149,6 +146,11 @@ if __name__ == "__main__":
     # set the range of pressures to be investigated
     pressures = jnp.arange(500, 20000, 500)
 
+    # add the adjacency matrix
+    weights = jnp.arange(1, Nt+1)
+    am = pnm.network.create_adjacency_matrix(net, weights=weights, fmt='csr')
+    net['adjacency_matrix'] = am
+
     # run invasion simulation
     sat = run_invasion(net, pressures)
 
@@ -158,7 +160,7 @@ if __name__ == "__main__":
     plt.xlabel('Pressures')
     plt.ylabel('Saturation')
     plt.show()
-    
+
     # try to take gradient
     grad_f = jax.grad(f)
     jit_f = jax.jit(f)
@@ -170,9 +172,8 @@ if __name__ == "__main__":
     # test grad_f working
     D = jnp.array([0.8, 0.55, 0.35, 0.2]) * spacing
     print(grad_f(D, net))
-    xx
     print(jit_f(D, net))
-    xx
+
     # Define the ODE system for gradient flow: dx/dt = -grad(f)
     def dydt(t, y, net):
         return -grad_f(y, net)
