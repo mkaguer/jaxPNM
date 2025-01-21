@@ -3,7 +3,7 @@ import os
 from jax import config
 import jax
 import jax.numpy as jnp
-from jax import lax
+from jax import lax, nn
 import mypnmlib as pnm
 import matplotlib.pyplot as plt
 import diffrax as dfx
@@ -21,11 +21,10 @@ def run_invasion(net, pressures):
     vp = net['pore.volume']
     vt = net['throat.volume']
     total_volume = jnp.sum(vp) + jnp.sum(vt)
-    # boolean array that keeps track of invaded throats
-    invaded_throats = jnp.zeros(Nt, bool)
-    # a boolean array to keep track of invaded pores
-    # FIXME: update so it gets from boundary condition
-    invaded_pores = net['pore.left']
+    # total_volume = jnp.sum(vt)
+    # initialize invasion "probabilities" (determined by sigmoid)
+    invaded_throats = jnp.zeros(Nt, dtype=float)
+    invaded_pores = net['pore.left'].astype(float)  # FIXME: get from bc
     # create array to contain saturation for each invading pressure
     saturation = jnp.zeros_like(pressures, dtype=float)
 
@@ -36,27 +35,29 @@ def run_invasion(net, pressures):
             invaded_throats, invaded_pores, old_count, count = state
             return count != old_count
 
-        def body_fun(state):
+        def body_fun(i, state):
             # breakout state
             invaded_throats, invaded_pores, old_count, count = state
             # reset old_count
             old_count = count
-            # find all invadable throats
-            invadable = net['throat.entry_pressure'] < invading_pressure
+            # find invadable throat "probabilities"
+            sf = 0.01
+            Pc = net['throat.entry_pressure']
+            invadable = nn.sigmoid((invading_pressure - Pc)/sf)
             # find throats connected to invaded pores
-            pores = jnp.where(invaded_pores, jnp.arange(Np), -1)
+            pores = jnp.where(invaded_pores > 0.5, jnp.arange(Np), -1)
             connected = pnm.models.find_neighbor_throats(net, pores)
-            # find connected AND invaded throats, newly invaded
-            invaded = jnp.logical_and(invadable, connected)
-            # add newly invaded throats
-            invaded_throats = jnp.logical_or(invaded_throats, invaded)
+            connected = jnp.where(connected, invadable, 0.0)  # asssign probs
+            # update invaded probabilities for throats
+            invaded_throats = jnp.maximum(invaded_throats, connected)
+            # find pores neighbouring all invaded throats
+            throats = jnp.where(invaded_throats > 0.5, jnp.arange(Nt), -1)
+            pores = pnm.models.find_neighbor_pores(net, throats)
+            # update invaded probabilities for pores
+            # FIXME could assign actually probabilities here based on throats!
+            invaded_pores = jnp.maximum(invaded_pores, pores.astype(float))
             # update count
             count = jnp.sum(invaded_throats)
-            # find pores neighbouring ALL invaded throats
-            throats = jnp.where(invaded_throats, jnp.arange(Nt), -1)
-            pores = pnm.models.find_neighbor_pores(net, throats)
-            # update invaded pores
-            invaded_pores = jnp.logical_or(invaded_pores, pores)
             return invaded_throats, invaded_pores, old_count, count
 
         # Initial state for the while loop
@@ -64,7 +65,8 @@ def run_invasion(net, pressures):
         old_count = -1
         init_state = (invaded_throats, invaded_pores, old_count, count)
         # run while loop
-        final_state = lax.while_loop(cond_fun, body_fun, init_state)
+        # final_state = lax.while_loop(cond_fun, body_fun, init_state)
+        final_state = lax.fori_loop(0, 5, body_fun, init_state)
         return final_state[0:2]  # return invaded_throats and invaded_pores
 
     def invasion(i, state):
@@ -81,6 +83,7 @@ def run_invasion(net, pressures):
             jnp.sum(vp * invaded_pores) +
             jnp.sum(vt * invaded_throats)
         )
+        # invaded_volume = jnp.sum(vt * invaded_throats)
         sat = invaded_volume / total_volume
         saturation = saturation.at[i].set(sat)
         return invaded_throats, invaded_pores, saturation
@@ -146,8 +149,18 @@ def f(D, net):
     # print(SSE)
     # print(penalty)
     # calculate loss
-    # loss = R2 + penalty
-    loss = SSE
+    loss = SSE + penalty
+    # loss = SSE
+    # FIXME: add noise, have to figure out random number generator!
+    # FIXME: sigmoid function, might help with making larger step sizes to better
+    # predict invasion
+    # FIXME: trying various initial conditions, combining non-gradient based methods
+    # FIXME: number of pressures!
+    # FIXME: try rmse
+    # FIXME: try momentum for lerning rate!
+    # FIXME: manually 
+    # FIXME: gradient clipping
+    # Bayesian approach
 
     return loss
 
@@ -202,6 +215,7 @@ if __name__ == "__main__":
 
     # try to take gradient
     grad_f = jax.grad(f)
+    jit_f = jax.jit(f)
 
     # add sat_target and pressures to net
     net['sat_target'] = sat
@@ -210,7 +224,8 @@ if __name__ == "__main__":
     # test grad_f working
     D = jnp.array([0.8, 0.55, 0.35, 0.2]) * spacing
     print(f(D, net))
-    
+    print(grad_f(D, net))
+
     # Define the ODE system for gradient flow: dx/dt = -grad(f)
     def dydt(t, y, net):
         return -grad_f(y, net)
@@ -219,10 +234,10 @@ if __name__ == "__main__":
     # key = random.PRNGKey(1)  # make results reproducible
     # y0 = random.uniform(key, shape=(Np,))
     y0 = D
-    t0, t1 = 0, 100  # Time span (we treat the optimization as a "time" evolution)
+    t0, t1 = 0, 10  # Time span (we treat the optimization as a "time" evolution)
     # Choose an ODE solver
-    # solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
-    solver = dfx.Euler()
+    solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
+    # solver = dfx.Euler()
     # Define the ODE problem
     term = dfx.ODETerm(dydt)
     # Solve the ODE, treating time as "iterations" for optimization
@@ -235,7 +250,7 @@ if __name__ == "__main__":
     
     # visualize loss as a function of one of the parameters!
     D_vals = jnp.linspace(0.01, 1.0, 100)
-    losses = jnp.array([f(jnp.array([0.8, 0.55, 0.35, D]), net) for D in D_vals])
+    losses = jnp.array([f(jnp.array([0.8, D, 0.35, 0.2]), net) for D in D_vals])
 
     plt.plot(D_vals, losses)
     plt.xlabel("D[0]")
