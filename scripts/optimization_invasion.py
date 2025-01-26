@@ -1,101 +1,95 @@
-
 import os
 from jax import config
 import jax
 import jax.numpy as jnp
-from jax import lax, nn
+from jax import lax
 import mypnmlib as pnm
 import matplotlib.pyplot as plt
 import diffrax as dfx
+import time
 
 os.environ["JAX_PLATFORMS"] = "cpu"
 config.update("jax_enable_x64", True)
 
 
-def run_invasion(net, pressures):
-    
+def find_invasion_pressure(net):
+
     # get Nt and Np
     Nt = len(net['throat.conns'])
     Np = len(net['pore.volume'])
+    # get capillary pressure
+    pc = net['throat.entry_pressure']
+    # get maximum entry pressure
+    max_pc = jnp.max(pc)
+    # initialize invaded_throats and invaded_pores
+    invaded_throats = jnp.zeros(Nt, dtype=bool)
+    invaded_pores = net['pore.left']  # FIXME: update so it gets from bc
+
+    def body_fun(i, state):
+        # breakout state
+        invaded_throats, invaded_pores, pressure, invasion_pressure = state
+        # find throats connected to set of invaded pores
+        pores = jnp.where(invaded_pores, jnp.arange(Np), -1)
+        connected = pnm.models.find_neighbor_throats(net, pores)
+        # find invadable throats (set of connected but not invaded)
+        invadable = jnp.logical_xor(connected, invaded_throats)
+        # get index of invadable throat with minimum pressure
+        index = jnp.argmin(jnp.where(invadable, pc, max_pc*2))
+        # update pressure
+        pressure = jnp.maximum(pressure, pc[index])
+        # update invasion pressire for throat
+        invasion_pressure = invasion_pressure.at[index].set(pressure)
+        # add newly invaded throats
+        invaded_throats = invaded_throats.at[index].set(True)
+        # update invaded pores, find ALL pores neighbouring invaded throats!
+        throats = jnp.where(invaded_throats, jnp.arange(Nt), -1)
+        invaded_pores = pnm.models.find_neighbor_pores(net, throats)
+        return invaded_throats, invaded_pores, pressure, invasion_pressure
+
+    # initialize state for the for loop
+    pressure = 0
+    invasion_pressure = jnp.zeros(Nt)
+    init_state = (invaded_throats, invaded_pores, pressure, invasion_pressure)
+    # run for loop
+    final_state = lax.fori_loop(0, Nt, body_fun, init_state)
+    # get invasion pressure from state
+    invasion_pressure = final_state[-1]
+
+    return invasion_pressure
+
+
+def run_invasion(net, pressure):
+
+    # get invasion pressures (Nt,)
+    invasion_pressure = find_invasion_pressure(net)
     # get volumes
     vp = net['pore.volume']
     vt = net['throat.volume']
     total_volume = jnp.sum(vp) + jnp.sum(vt)
-    # total_volume = jnp.sum(vt)
-    # initialize invasion "probabilities" (determined by sigmoid)
-    invaded_throats = jnp.zeros(Nt, dtype=float)
-    invaded_pores = net['pore.left'].astype(float)  # FIXME: get from bc
-    # create array to contain saturation for each invading pressure
-    saturation = jnp.zeros_like(pressures, dtype=float)
 
-    def deep_invasion(invaded_state, invading_pressure):
-        invaded_throats, invaded_pores = invaded_state
-
-        def cond_fun(state):
-            invaded_throats, invaded_pores, old_count, count = state
-            return count != old_count
-
-        def body_fun(i, state):
-            # breakout state
-            invaded_throats, invaded_pores, old_count, count = state
-            # reset old_count
-            old_count = count
-            # find invadable throat "probabilities"
-            sf = 0.01
-            Pc = net['throat.entry_pressure']
-            invadable = nn.sigmoid((invading_pressure - Pc)/sf)
-            # find throats connected to invaded pores
-            pores = jnp.where(invaded_pores > 0.5, jnp.arange(Np), -1)
-            connected = pnm.models.find_neighbor_throats(net, pores)
-            connected = jnp.where(connected, invadable, 0.0)  # asssign probs
-            # update invaded probabilities for throats
-            invaded_throats = jnp.maximum(invaded_throats, connected)
-            # find pores neighbouring all invaded throats
-            throats = jnp.where(invaded_throats > 0.5, jnp.arange(Nt), -1)
-            pores = pnm.models.find_neighbor_pores(net, throats)
-            # update invaded probabilities for pores
-            # FIXME could assign actually probabilities here based on throats!
-            invaded_pores = jnp.maximum(invaded_pores, pores.astype(float))
-            # update count
-            count = jnp.sum(invaded_throats)
-            return invaded_throats, invaded_pores, old_count, count
-
-        # Initial state for the while loop
-        count = jnp.sum(invaded_throats)
-        old_count = -1
-        init_state = (invaded_throats, invaded_pores, old_count, count)
-        # run while loop
-        # final_state = lax.while_loop(cond_fun, body_fun, init_state)
-        final_state = lax.fori_loop(0, 5, body_fun, init_state)
-        return final_state[0:2]  # return invaded_throats and invaded_pores
-
-    def invasion(i, state):
+    def body_func(i, state):
         # breakout state
-        invaded_throats, invaded_pores, saturation = state
-        # get invading pressure
-        invading_pressure = pressures[i]
-        # perform deeep invasion (while loop)
-        invaded_state = deep_invasion((invaded_throats, invaded_pores),
-                                      invading_pressure)
-        invaded_throats, invaded_pores = invaded_state
-        # Calculate invaded volume and saturation
-        invaded_volume = (
-            jnp.sum(vp * invaded_pores) +
-            jnp.sum(vt * invaded_throats)
-        )
-        # invaded_volume = jnp.sum(vt * invaded_throats)
-        sat = invaded_volume / total_volume
+        saturation = state
+        # apply sigmoid function
+        sf = 0.01
+        throat_prob = jax.nn.sigmoid((pressure[i] - invasion_pressure)/sf)
+        # find pore probability
+        pore_prob = pnm.models.get_max_of_neighbor_throats(net, throat_prob)
+        pore_prob = jnp.where(net['pore.left'], 1.0, pore_prob)
+        # calculate invaded volume
+        invaded_volume = jnp.sum(vp * pore_prob) + jnp.sum(vt * throat_prob)
+        # calculate saturation
+        sat = invaded_volume/total_volume
         saturation = saturation.at[i].set(sat)
-        return invaded_throats, invaded_pores, saturation
+        return saturation
 
-    # set initial state
-    init_state = (invaded_throats, invaded_pores, saturation)
-    # loop over invading pressures
-    final_state = lax.fori_loop(0, len(pressures), invasion, init_state)
-    # get saturation from final state
-    saturation = final_state[2]
+    # initialize saturation
+    saturation = jnp.zeros(len(pressure), dtype=float)  # FIXME: minus bp vol
+    # run for loop
+    state = saturation
+    sat = lax.fori_loop(0, len(pressure), body_func, state)
 
-    return saturation
+    return sat
 
 
 def R_squared(y, y_target):
@@ -138,29 +132,12 @@ def f(D, net):
     sat = run_invasion(net, pressures)
     # calculate SSE
     SSE = calc_sse(sat, sat_target)
-    # print(SSE)
-    # xx
     # calculate penalty
-    # penalty = ...  # FIXME: add penalty to loss to fix diameters between 0 and 1
-    # calc penalty
     lbd = jnp.maximum(0.0 - D, 0)
     ubd = jnp.maximum(D - 1.0, 0)
     penalty = jnp.sum(lbd**2 + ubd**2)
-    # print(SSE)
-    # print(penalty)
     # calculate loss
     loss = SSE + penalty
-    # loss = SSE
-    # FIXME: add noise, have to figure out random number generator!
-    # FIXME: sigmoid function, might help with making larger step sizes to better
-    # predict invasion
-    # FIXME: trying various initial conditions, combining non-gradient based methods
-    # FIXME: number of pressures!
-    # FIXME: try rmse
-    # FIXME: try momentum for lerning rate!
-    # FIXME: manually 
-    # FIXME: gradient clipping
-    # Bayesian approach
 
     return loss
 
@@ -215,7 +192,6 @@ if __name__ == "__main__":
 
     # try to take gradient
     grad_f = jax.grad(f)
-    jit_f = jax.jit(f)
 
     # add sat_target and pressures to net
     net['sat_target'] = sat
@@ -224,30 +200,35 @@ if __name__ == "__main__":
     # test grad_f working
     D = jnp.array([0.8, 0.55, 0.35, 0.2]) * spacing
     print(f(D, net))
+
+    start = time.time()
     print(grad_f(D, net))
+    stop = time.time()
+    print(f'{stop - start:.4f}s')
 
     # Define the ODE system for gradient flow: dx/dt = -grad(f)
     def dydt(t, y, net):
-        return -grad_f(y, net)
+        return jnp.clip(-grad_f(y, net), -10.0, 10.0)
 
     # Initial condition
-    # key = random.PRNGKey(1)  # make results reproducible
-    # y0 = random.uniform(key, shape=(Np,))
     y0 = D
     t0, t1 = 0, 10  # Time span (we treat the optimization as a "time" evolution)
     # Choose an ODE solver
-    solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
-    # solver = dfx.Euler()
+    # solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
+    solver = dfx.Euler()
     # Define the ODE problem
     term = dfx.ODETerm(dydt)
     # Solve the ODE, treating time as "iterations" for optimization
+    start = time.time()
     solution = dfx.diffeqsolve(term, solver, t0=t0, t1=t1, dt0=0.01, y0=y0, args=net, max_steps=10000)
+    stop = time.time()
+    print(f'{stop - start:.4f}s')
     # The final x value after "evolving" it toward the minimum
     x_min = solution.ys[-1]
     loss = f(x_min, net)
     print(x_min)
     print(loss)
-    
+
     # visualize loss as a function of one of the parameters!
     D_vals = jnp.linspace(0.01, 1.0, 100)
     losses = jnp.array([f(jnp.array([0.8, D, 0.35, 0.2]), net) for D in D_vals])
@@ -257,35 +238,3 @@ if __name__ == "__main__":
     plt.ylabel("Loss")
     plt.title("Loss Landscape Along D[0]")
     plt.show()
-    
-    '''
-    # update diameter
-    net['pore.diameter'] = x_min
-
-    # regenerate geometry models
-    net['throat.diameter'] = pnm.models.throat_diameter(net)
-    net['throat.length'] = pnm.models.throat_length(net)
-    net['pore.volume'] = pnm.models.sphere(net)
-    net['throat.total_volume'] = pnm.models.cylinder(net)
-    net['throat.lens_volume'] = pnm.models.lens(network=net)
-    props = ['throat.total_volume', 'throat.lens_volume']
-    net['throat.volume'] = pnm.models.difference(network=net, props=props)
-    # add entry pressure model
-    net['throat.contact_angle'] = 120
-    net['throat.surface_tension'] = 0.072
-    Pc = pnm.models.washburn(network=net)
-    net['throat.entry_pressure'] = Pc
-
-    # run invasion simulation
-    sat = run_invasion(net, pressures)
-    sat_target = net['sat_target']
-
-    # plot
-    plt.figure(2)
-    plt.plot(pressures, sat, label='fitted')
-    plt.plot(pressures, sat_target, label='experimental')
-    plt.legend()
-    plt.xlabel('Pressures')
-    plt.ylabel('Saturation')
-    plt.show()
-    '''
