@@ -1,4 +1,5 @@
 # My .gitignore file types
 *.docx
 *.txt
+/notebooks/*
 scripts/__pycache__
