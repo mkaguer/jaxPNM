@@ -146,16 +146,17 @@ if __name__ == "__main__":
 
     # create network
     spacing = 1
-    net = pnm.network.make_cubic_network(shape=[4, 1, 1], spacing=spacing)
+    net = pnm.network.make_cubic_network(shape=[5, 5, 5], spacing=spacing)
 
     # get Nt and Np
     Nt = len(net['throat.conns'])
     Np = len(net['pore.coords'])
 
     # get diameters
-    # key = jax.random.PRNGKey(0)
-    # D = jax.random.uniform(key, shape=(Np,)) * spacing
-    D = jnp.array([0.9, 0.5, 0.4, 0.25]) * spacing
+    key = jax.random.PRNGKey(0)
+    D = jax.random.uniform(key, shape=(Np,)) * spacing
+    # D = jnp.array([0.9, 0.5, 0.4, 0.25]) * spacing
+    print(f'Target diameter: {D}')
     net['pore.diameter'] = D
 
     # regenerate geometry models
@@ -185,10 +186,9 @@ if __name__ == "__main__":
 
     # plot
     plt.figure(1)
-    plt.plot(pressures, sat)
+    plt.plot(pressures, sat, label='target')
     plt.xlabel('Pressures')
     plt.ylabel('Saturation')
-    plt.show()
 
     # try to take gradient
     grad_f = jax.grad(f)
@@ -196,23 +196,30 @@ if __name__ == "__main__":
     # add sat_target and pressures to net
     net['sat_target'] = sat
     net['pressures'] = pressures
-
+    
     # test grad_f working
-    D = jnp.array([0.8, 0.55, 0.35, 0.2]) * spacing
-    print(f(D, net))
+    # D = jnp.array([0.8, 0.55, 0.35, 0.2]) * spacing
+    key = jax.random.PRNGKey(1)
+    y0 = jax.random.uniform(key, shape=(Np,)) * spacing
+    # y0 = jnp.ones(Np) * 0.5 * spacing
+    print('Initial loss:', f(y0, net))
 
+    sat = run_invasion(net, pressures)
+    plt.figure(1)
+    plt.plot(pressures, sat, label='Initial Guess')
+    
     start = time.time()
-    print(grad_f(D, net))
+    print(f'Initial gradient: {grad_f(y0, net)}')
     stop = time.time()
-    print(f'{stop - start:.4f}s')
+    print(f'Gradient time: {stop - start:.4f}s')
 
     # Define the ODE system for gradient flow: dx/dt = -grad(f)
     def dydt(t, y, net):
         return jnp.clip(-grad_f(y, net), -10.0, 10.0)
 
     # Initial condition
-    y0 = D
-    t0, t1 = 0, 10  # Time span (we treat the optimization as a "time" evolution)
+    y0 = y0
+    t0, t1 = 0, 1  # Time span (we treat the optimization as a "time" evolution)
     # Choose an ODE solver
     # solver = dfx.Tsit5()  # Tsit5 is a good general-purpose ODE solver
     solver = dfx.Euler()
@@ -222,13 +229,13 @@ if __name__ == "__main__":
     start = time.time()
     solution = dfx.diffeqsolve(term, solver, t0=t0, t1=t1, dt0=0.01, y0=y0, args=net, max_steps=10000)
     stop = time.time()
-    print(f'{stop - start:.4f}s')
+    print(f'Optimizer Time: {stop - start:.4f}s')
     # The final x value after "evolving" it toward the minimum
     x_min = solution.ys[-1]
     loss = f(x_min, net)
-    print(x_min)
-    print(loss)
-
+    print(f'Solution: {x_min}')
+    print(f'Final loss: {loss}')
+    '''
     # visualize loss as a function of one of the parameters!
     D_vals = jnp.linspace(0.01, 1.0, 100)
     losses = jnp.array([f(jnp.array([0.8, D, 0.35, 0.2]), net) for D in D_vals])
@@ -238,3 +245,11 @@ if __name__ == "__main__":
     plt.ylabel("Loss")
     plt.title("Loss Landscape Along D[0]")
     plt.show()
+    '''
+    
+    sat = run_invasion(net, pressures)
+    plt.figure(1)
+    plt.plot(pressures, sat, label='AI')
+    plt.legend()
+    plt.show()
+    
