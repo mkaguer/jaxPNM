@@ -60,7 +60,7 @@ plt.ylabel('Saturation')
 # get initial diameters
 key = jax.random.PRNGKey(1)
 D0 = jax.random.uniform(key, shape=(Np,)) * spacing
-print(f'Initial loss: {fcn.sat_loss(D0)}')
+print(f'Initial loss: {fcn.sat_loss(D0)}')  # 3.8878519491468686
 
 # get initial saturation
 sat0 = fcn.run_invasion()
@@ -69,7 +69,7 @@ plt.plot(pressure, sat0, label='Initial Guess')
 
 # fit porosimetry
 D, loss = fcn.fit_porosimetry(D0, solver=dfx.Euler(), t_span=(0, 1), dt=0.01)
-print(f'Final loss: {fcn.sat_loss(D)}')
+print(f'Final loss: {fcn.sat_loss(D)}')  # 0.010063525072810366 
 
 # plot AI porosimetry
 sat = fcn.run_invasion()
