@@ -122,10 +122,25 @@ class FitCubicNetwork:
 
         return invasion_pressure
 
-    def run_invasion(self):
+    def run_invasion(self, D):
 
         # get network
         net = self.network
+        # set pore diameter
+        net['pore.diameter'] = D
+        # regenerate geometry models
+        net['throat.diameter'] = pnm.models.throat_diameter(network=net)
+        net['throat.length'] = pnm.models.throat_length(network=net)
+        net['pore.volume'] = pnm.models.sphere(network=net)
+        net['throat.total_volume'] = pnm.models.cylinder(network=net)
+        net['throat.lens_volume'] = pnm.models.lens(network=net)
+        props = ['throat.total_volume', 'throat.lens_volume']
+        net['throat.volume'] = pnm.models.difference(network=net, props=props)
+        # add entry pressure model
+        net['throat.contact_angle'] = 120
+        net['throat.surface_tension'] = 0.072
+        Pc = pnm.models.washburn(network=net)
+        net['throat.entry_pressure'] = Pc
         # get pressure 
         pressure = self.pressure
         # get invasion pressures (Nt,)
@@ -177,23 +192,8 @@ class FitCubicNetwork:
 
         # get network
         net = self.network
-        # set pore diameter
-        net['pore.diameter'] = D
-        # regenerate geometry models
-        net['throat.diameter'] = pnm.models.throat_diameter(network=net)
-        net['throat.length'] = pnm.models.throat_length(network=net)
-        net['pore.volume'] = pnm.models.sphere(network=net)
-        net['throat.total_volume'] = pnm.models.cylinder(network=net)
-        net['throat.lens_volume'] = pnm.models.lens(network=net)
-        props = ['throat.total_volume', 'throat.lens_volume']
-        net['throat.volume'] = pnm.models.difference(network=net, props=props)
-        # add entry pressure model
-        net['throat.contact_angle'] = 120
-        net['throat.surface_tension'] = 0.072
-        Pc = pnm.models.washburn(network=net)
-        net['throat.entry_pressure'] = Pc
         # run invasion simulation
-        sat = self.run_invasion()
+        sat = self.run_invasion(D)
         # calculate SSE
         SSE = self.calc_sse(sat, self.sat_target)
         # calculate penalty
