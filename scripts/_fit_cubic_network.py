@@ -131,7 +131,7 @@ class FitCubicNetwork:
         # get invasion pressures (Nt,)
         invasion_pressure = self.find_invasion_pressure()
         # get volumes
-        vp = net['pore.volume']
+        vp = jnp.where(net['pore.left'], 0.0, net['pore.volume'])
         vt = net['throat.volume']
         total_volume = jnp.sum(vp) + jnp.sum(vt)
 
@@ -143,7 +143,6 @@ class FitCubicNetwork:
             throat_prob = jax.nn.sigmoid((pressure[i] - invasion_pressure)/sf)
             # find pore probability
             pore_prob = pnm.models.get_max_of_neighbor_throats(net, throat_prob)
-            pore_prob = jnp.where(net['pore.left'], 1.0, pore_prob)
             # calculate invaded volume
             invaded_volume = jnp.sum(vp * pore_prob) + jnp.sum(vt * throat_prob)
             # calculate saturation
@@ -200,7 +199,7 @@ class FitCubicNetwork:
         # calculate penalty
         lbd = jnp.maximum(0.0 - D, 0)
         ubd = jnp.maximum(D - 1.0, 0)
-        penalty = jnp.sum(lbd**2 + ubd**2)
+        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3
         # calculate loss
         loss = SSE + penalty
 
