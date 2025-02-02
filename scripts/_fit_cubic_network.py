@@ -234,10 +234,28 @@ class FitCubicNetwork:
 
         # get network
         net = self.network
+        # get spacing
+        spacing = 1.0  # FIXME: add as attribute to network
+        # get coords
+        coords = net['pore.coords']
         # calc flow rate
         pores = net['rate_pores']
         Q = -1*pnm.simulations.rate(net, x, pores=pores)[0]
-        K = Q  # FIXME: we need to actually calculate K!
+        # FIXME: add shape as network attribute
+        # get length, width, and height of network
+        L = jnp.max(coords[:, 0]) - jnp.min(coords[:, 0])
+        w = jnp.max(coords[:, 1]) - jnp.min(coords[:, 1]) + spacing
+        h = jnp.max(coords[:, 2]) - jnp.min(coords[:, 2]) + spacing
+        # calculate area perpendicular to flow, assumes flow in x-direction
+        A = w * h
+        # get deltaP
+        P1 = jnp.max(net['pore.bc.value'][net['pore.bc.mask']])
+        P2 = jnp.min(net['pore.bc.value'][net['pore.bc.mask']])
+        deltaP = P1 - P2
+        # viscosity
+        mu = 1e-3
+        # calculate K
+        K = mu * Q * L / A / deltaP
 
         return K
 

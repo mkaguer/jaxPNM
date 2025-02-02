@@ -24,17 +24,18 @@ net['pore.viscosity'] = jnp.ones(Np) * 1e-3
 net['throat.viscosity'] = jnp.ones(Nt) * 1e-3
 
 # set BCs
+P1, P2 = 1.0, 0.0
 pores = jnp.where(net['pore.left'])[0]
 pnm.simulations.set_BC(net,
                        pores=pores,
                        bctype='value',
-                       bcvalues=1.0,
+                       bcvalues=P1,
                        mode='overwrite')
 pores = jnp.where(net['pore.right'])[0]
 pnm.simulations.set_BC(net,
                        pores=pores,
                        bctype='value',
-                       bcvalues=0.0,
+                       bcvalues=P2,
                        mode='add')
 
 # add pores to calculate rate
@@ -45,16 +46,21 @@ key = random.PRNGKey(1)
 D0 = random.uniform(key, shape=(Np,))
 
 # set target permeability
-K_target = 0.99425941
+K_target = 8.94833e-05
 
 # Use JAX to fit cubic network
 fcn = FitCubicNetwork(network=net, K_target=K_target)
-D, loss = fcn.fit_K(D0, solver=dfx.Euler(), t_span=(0, 10), dt=1)
+D, loss = fcn.fit_K(D0, solver=dfx.Euler(), t_span=(0, 1e9), dt=1e8)
 
-print(f"Avg D = {jnp.average(D)}")
-print(f"Min D = {jnp.min(D)}")
-print(f"Max D = {jnp.max(D)}")
-print(f"Loss = {loss}")
+# check permeability
+x = fcn.flow(D)
+K = fcn.calc_K(x)
+print(K)  # 8.948330993468651e-05
+
+print(f"Avg D = {jnp.average(D)}")  # 0.5010305962353754
+print(f"Min D = {jnp.min(D)}")  # 1.5224705660751351e-05
+print(f"Max D = {jnp.max(D)}")  # 0.9993184311534421
+print(f"Loss = {loss}")  # 9.869799604927808e-23
 
 # plot loss landscape
 fcn.plot_loss(D0, index=0, N=100)
