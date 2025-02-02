@@ -253,7 +253,7 @@ class FitCubicNetwork:
         P2 = jnp.min(net['pore.bc.value'][net['pore.bc.mask']])
         deltaP = P1 - P2
         # viscosity
-        mu = 1e-3
+        mu = net['pore.viscosity'][0]
         # calculate K
         K = mu * Q * L / A / deltaP
 
