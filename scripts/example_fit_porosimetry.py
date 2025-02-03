@@ -20,7 +20,7 @@ Np = len(net['pore.coords'])
 
 # get target diameters
 key = jax.random.PRNGKey(0)
-D = jax.random.uniform(key, shape=(Np,)) * spacing
+D = jax.random.uniform(key, shape=(Np,))
 
 # add the adjacency matrix
 weights = jnp.arange(1, Nt+1)
@@ -28,8 +28,8 @@ am = pnm.network.create_adjacency_matrix(net, weights=weights, fmt='csr')
 net['adjacency_matrix'] = am
 
 # create instance of FitCubicNetwork
-pressure = jnp.arange(0.1, 2, 0.01)
-fcn = FitCubicNetwork(net, pressure=pressure)
+pressure = jnp.arange(0.1, 2/spacing, 0.01/spacing)
+fcn = FitCubicNetwork(net, pressure=pressure, spacing=spacing)
 
 # add sat_target as attribute to fcn
 sat_target = fcn.run_invasion(D)
@@ -43,8 +43,8 @@ plt.ylabel('Saturation')
 
 # get initial diameters
 key = jax.random.PRNGKey(1)
-D0 = jax.random.uniform(key, shape=(Np,)) * spacing
-print(f'Initial loss: {fcn.sat_loss(D0)}')  # 3.8878519491468686
+D0 = jax.random.uniform(key, shape=(Np,))
+print(f'Initial loss: {fcn.sat_loss(D0)}')  # 6.320036460627565
 
 # get initial saturation
 sat0 = fcn.run_invasion(D0)
@@ -53,7 +53,7 @@ plt.plot(pressure, sat0, label='Initial Guess')
 
 # fit porosimetry
 D, loss = fcn.fit_porosimetry(D0, solver=dfx.Euler(), t_span=(0, 1), dt=0.01)
-print(f'Final loss: {fcn.sat_loss(D)}')  # 0.008630249199476726
+print(f'Final loss: {fcn.sat_loss(D)}')  # 0.0086302491963743
 
 # plot AI porosimetry
 sat = fcn.run_invasion(D)
