@@ -12,7 +12,7 @@ os.environ["JAX_PLATFORMS"] = "cpu"
 config.update("jax_enable_x64", True)
 
 # create network
-spacing = 1
+spacing = 1e-1
 net = pnm.network.make_cubic_network(shape=[5, 5, 5], spacing=spacing)
 
 # get Nt and Np
@@ -29,8 +29,8 @@ am = pnm.network.create_adjacency_matrix(net, weights=weights, fmt='csr')
 net['adjacency_matrix'] = am
 
 # create instance of FitCubicNetwork
-pressure = jnp.arange(0.1, 2, 0.01)
-fcn = FitCubicNetwork(net, pressure=pressure)
+pressure = jnp.arange(0.1, 20, 0.1)
+fcn = FitCubicNetwork(net, pressure=pressure, spacing=spacing)
 
 # add sat_target as attribute to fcn
 sat_target = fcn.run_invasion(D_target)
@@ -53,7 +53,7 @@ plt.figure(1)
 plt.plot(pressure, sat0, label='Initial Guess')
 
 # fit porosimetry
-D, loss = fcn.fit_porosimetry(D0, solver=dfx.Euler(), t_span=(0, 1), dt=0.01)
+D, loss = fcn.fit_porosimetry(D0, solver=dfx.Euler(), t_span=(0, 0.01), dt=0.001)
 print(f'Final loss: {fcn.sat_loss(D)}')  # 0.008630249199476726
 
 # plot AI porosimetry
@@ -61,7 +61,6 @@ sat = fcn.run_invasion(D)
 plt.figure(1)
 plt.plot(pressure, sat, label='AI')
 plt.legend()
-
 
 # %% FLOW SIMULATION
 
@@ -104,7 +103,7 @@ print(f'Old Solution permeability: {K}')
 
 # Use JAX to fit cubic network
 fcn.K_target = K_target
-D, loss = fcn.fit_K(D, solver=dfx.Euler(), t_span=(0, 1), dt=0.1)
+D, loss = fcn.fit_K(D, solver=dfx.Euler(), t_span=(0, 1e12), dt=1e10)
 
 # get new solutin permeabiity or Q
 p = fcn.flow(D)

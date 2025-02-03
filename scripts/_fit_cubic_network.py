@@ -13,7 +13,12 @@ class FitCubicNetwork:
     differentiation in JAX
     """
 
-    def __init__(self, network, K_target=None, sat_target=None, pressure=None):
+    def __init__(self,
+                 network,
+                 K_target=None,
+                 sat_target=None,
+                 pressure=None,
+                 spacing=None):
         r"""
         Initializes class with network attribute
 
@@ -33,6 +38,7 @@ class FitCubicNetwork:
         self.K_target = K_target
         self.sat_target = sat_target
         self.pressure = pressure
+        self.spacing = spacing
 
     def flow(self, D):
         r"""
@@ -196,10 +202,15 @@ class FitCubicNetwork:
         sat = self.run_invasion(D)
         # calculate SSE
         SSE = self.calc_sse(sat, self.sat_target)
+        # find spacing
+        spacing = self.spacing  # FIXME: spacing as attribute for cubic net
+        # cons = net['throat.conns']
+        # dif = jnp.diff(net['pore.coords'][cons[0]],axis=0)
+        # spacing = jnp.sqrt(jnp.sum(dif**2))
         # calculate penalty
         lbd = jnp.maximum(0.0 - D, 0)
-        ubd = jnp.maximum(D - 1.0, 0)
-        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3
+        ubd = jnp.maximum(D - spacing, 0)
+        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3 / spacing ** 2
         # calculate loss
         loss = SSE + penalty
 
@@ -291,10 +302,12 @@ class FitCubicNetwork:
         K = self.calc_K(x)
         # calculate loss
         loss = self.mse_loss(K, self.K_target)
+        # get spacing
+        spacing = self.spacing
         # add penalty to loss
         lbd = jnp.maximum(0.0 - D, 0)  # keep D > 0
-        ubd = jnp.maximum(D - 1.0, 0)  # Keep D < 1
-        penalty = jnp.sum(lbd**2 + ubd**2)
+        ubd = jnp.maximum(D - spacing, 0)  # Keep D < 1
+        penalty = jnp.sum(lbd**2 + ubd**2) / spacing ** 2
         # Add penalty to loss
         loss += penalty
         return loss
