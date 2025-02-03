@@ -12,7 +12,7 @@ config.update("jax_enable_x64", True)
 # create network
 spacing = 1
 net = pnm.network.make_cubic_network(shape=[10, 10, 10],
-                                     spacing=1,
+                                     spacing=spacing,
                                      connectivity=6)
 
 # get Nt and Np
@@ -41,16 +41,24 @@ pnm.simulations.set_BC(net,
 # add pores to calculate rate
 net['rate_pores'] = pores  # FIXME: cannot do jnp.where inside f!
 
+# get target diameters
+key = random.PRNGKey(0)
+D_target = random.uniform(key, shape=(Np,))
+
+# define FitCubicNetwork object
+fcn = FitCubicNetwork(network=net, spacing=spacing)
+
+# find K_target
+x = fcn.flow(D_target)
+K_target = fcn.calc_K(x)
+fcn.K_target = K_target
+
 # initial guess
 key = random.PRNGKey(1)
 D0 = random.uniform(key, shape=(Np,))
 
-# set target permeability
-K_target = 8.94833e-05
-
 # Use JAX to fit cubic network
-fcn = FitCubicNetwork(network=net, K_target=K_target)
-D, loss = fcn.fit_K(D0, solver=dfx.Euler(), t_span=(0, 1e9), dt=1e8)
+D, loss = fcn.fit_K(D0, solver=dfx.Euler(), t_span=(0, 10), dt=1)
 
 # check permeability
 x = fcn.flow(D)
@@ -60,7 +68,7 @@ print(K)  # 8.948330993468651e-05
 print(f"Avg D = {jnp.average(D)}")  # 0.5010305962353754
 print(f"Min D = {jnp.min(D)}")  # 1.5224705660751351e-05
 print(f"Max D = {jnp.max(D)}")  # 0.9993184311534421
-print(f"Loss = {loss}")  # 9.869799604927808e-23
+print(f"Loss = {loss}")  # 2.335514203960915e-23
 
 # plot loss landscape
 fcn.plot_loss(D0, index=0, N=100)

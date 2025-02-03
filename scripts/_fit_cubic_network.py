@@ -59,8 +59,10 @@ class FitCubicNetwork:
         """
         # get network
         net = self.network
+        # get spacing
+        spacing = self.spacing
         # update D
-        net['pore.diameter'] = D  # FIXME: not enforcine size of arrays!
+        net['pore.diameter'] = D * spacing  # FIXME: not enforcine size of arrays!
         # update models that depend on D
         net['throat.diameter'] = pnm.models.throat_diameter(net)
         net['throat.hydraulic_size_factors'] = pnm.models.hydraulic_size_factor(net)
@@ -132,8 +134,10 @@ class FitCubicNetwork:
 
         # get network
         net = self.network
+        # get spacing
+        spacing = self.spacing
         # set pore diameter
-        net['pore.diameter'] = D
+        net['pore.diameter'] = D * spacing
         # regenerate geometry models
         net['throat.diameter'] = pnm.models.throat_diameter(network=net)
         net['throat.length'] = pnm.models.throat_length(network=net)
@@ -160,7 +164,7 @@ class FitCubicNetwork:
             # breakout state
             saturation = state
             # apply sigmoid function
-            sf = 0.01
+            sf = 0.01 / spacing
             throat_prob = jax.nn.sigmoid((pressure[i] - invasion_pressure)/sf)
             # find pore probability
             pore_prob = pnm.models.get_max_of_neighbor_throats(net, throat_prob)
@@ -202,15 +206,10 @@ class FitCubicNetwork:
         sat = self.run_invasion(D)
         # calculate SSE
         SSE = self.calc_sse(sat, self.sat_target)
-        # find spacing
-        spacing = self.spacing  # FIXME: spacing as attribute for cubic net
-        # cons = net['throat.conns']
-        # dif = jnp.diff(net['pore.coords'][cons[0]],axis=0)
-        # spacing = jnp.sqrt(jnp.sum(dif**2))
         # calculate penalty
         lbd = jnp.maximum(0.0 - D, 0)
-        ubd = jnp.maximum(D - spacing, 0)
-        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3 / spacing ** 2
+        ubd = jnp.maximum(D - 1.0, 0)
+        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3
         # calculate loss
         loss = SSE + penalty
 
@@ -246,7 +245,7 @@ class FitCubicNetwork:
         # get network
         net = self.network
         # get spacing
-        spacing = 1.0  # FIXME: add as attribute to network
+        spacing = self.spacing  # FIXME: add as attribute to network
         # get coords
         coords = net['pore.coords']
         # calc flow rate
@@ -290,7 +289,7 @@ class FitCubicNetwork:
         measured = jnp.asarray(measured)
         target = jnp.asarray(target)
         # Calculate MSE loss (supports scalar or array inputs)
-        mse = jnp.mean((measured - target) ** 2)
+        mse = jnp.mean(((measured - target)/target) ** 2)
 
         return mse
 
@@ -306,8 +305,8 @@ class FitCubicNetwork:
         spacing = self.spacing
         # add penalty to loss
         lbd = jnp.maximum(0.0 - D, 0)  # keep D > 0
-        ubd = jnp.maximum(D - spacing, 0)  # Keep D < 1
-        penalty = jnp.sum(lbd**2 + ubd**2) / spacing ** 2
+        ubd = jnp.maximum(D - 1.0, 0)  # Keep D < 1
+        penalty = jnp.sum(lbd**2 + ubd**2) * 10
         # Add penalty to loss
         loss += penalty
         return loss
