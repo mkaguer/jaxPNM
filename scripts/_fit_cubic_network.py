@@ -78,6 +78,9 @@ class FitCubicNetwork:
         A, b = pnm.simulations.apply_BC(net)
         # solve Ax = b
         A = js.BCSR.from_bcoo(A)  # need CSR format for linalg.spsolve!
+        # if working with float64 change A.indptr to int64
+        if A.data.dtype == jnp.float64:
+            A.indptr = A.indptr.astype(jnp.int64)
         x = js.linalg.spsolve(A.data, A.indices, A.indptr, b, tol=1e-12)
 
         return x
