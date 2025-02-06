@@ -15,6 +15,8 @@ class FitCubicNetwork:
 
     def __init__(self,
                  network,
+                 surface_tension=0.072,
+                 contact_angle=120,
                  K_target=None,
                  sat_target=None,
                  pressure=None,
@@ -35,6 +37,8 @@ class FitCubicNetwork:
 
         """
         self.network = network
+        self.surface_tension = surface_tension
+        self.contact_angle = contact_angle
         self.K_target = K_target
         self.sat_target = sat_target
         self.pressure = pressure
@@ -149,8 +153,8 @@ class FitCubicNetwork:
         props = ['throat.total_volume', 'throat.lens_volume']
         net['throat.volume'] = pnm.models.difference(network=net, props=props)
         # add entry pressure model
-        net['throat.contact_angle'] = 120
-        net['throat.surface_tension'] = 0.072
+        net['throat.contact_angle'] = self.contact_angle
+        net['throat.surface_tension'] = self.surface_tension
         Pc = pnm.models.washburn(network=net)
         net['throat.entry_pressure'] = Pc
         # get pressure 
