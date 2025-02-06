@@ -78,11 +78,10 @@ class FitCubicNetwork:
         A, b = pnm.simulations.apply_BC(net)
         # solve Ax = b
         A = js.BCSR.from_bcoo(A)  # need CSR format for linalg.spsolve!
-        A.indptr = A.indptr.astype('int64')  # FIXME: can I remove this line?
-        x = js.linalg.spsolve(A.data, A.indices, A.indptr, b, tol=1e-6)
+        x = js.linalg.spsolve(A.data, A.indices, A.indptr, b, tol=1e-12)
 
         return x
-
+    
     def find_invasion_pressure(self):
 
         # get network
@@ -306,12 +305,12 @@ class FitCubicNetwork:
         # add penalty to loss
         lbd = jnp.maximum(0.0 - D, 0)  # keep D > 0
         ubd = jnp.maximum(D - 1.0, 0)  # Keep D < 1
-        penalty = jnp.sum(lbd**2 + ubd**2) * 10
+        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3
         # Add penalty to loss
         loss += penalty
         return loss
 
-    def fit_K(self, D0, solver=dfx.Euler(), t_span=(0, 10), dt=1):
+    def fit_K(self, D0, solver=dfx.Euler(), t_span=(0, 10), dt=1, max_steps=None):
         r"""
         This method fits the diameters of a cubic network, assuming spheres
         and cylinders geometry, to a target permeability.
@@ -355,7 +354,12 @@ class FitCubicNetwork:
         # Solve the ODE, treating time as "iterations" for optimization
         solution = dfx.diffeqsolve(term,
                                    solver,
-                                   t0=t0, t1=t1, dt0=dt, y0=D0, args=net)
+                                   t0=t0,
+                                   t1=t1,
+                                   dt0=dt,
+                                   y0=D0,
+                                   args=net,
+                                   max_steps=max_steps)
         # The final x value after "evolving" it toward the minimum
         D = solution.ys[-1]
         loss = f(D, net)
