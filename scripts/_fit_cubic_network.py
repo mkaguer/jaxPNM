@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import diffrax as dfx
 import mypnmlib as pnm
 from jax import lax
+from scipy.stats import rv_discrete
 
 
 class FitCubicNetwork:
@@ -409,3 +410,29 @@ class FitCubicNetwork:
         plt.ylabel("Loss")
         plt.title(f"Loss Landscape Along D[{index}]")
         plt.show()
+
+    def bundle_of_tubes_rvs(self, num_samples=None):
+        
+        # get experimental data
+        sat_target = self.sat_target
+        x_target = self.x_target
+        # calculate throat diameters
+        sigma = self.surface_tension
+        theta = self.contact_angle
+        D = -4*sigma*jnp.cos(jnp.radians(theta))/x_target
+        # calculate throat volumes, assuming tube of unit length
+        V = jnp.pi*D**2/4
+        # calculate prabability mass function
+        f = jnp.zeros(len(sat_target), dtype=float)
+        f = f.at[0].set(sat_target[0])
+        f = f.at[1:].set(sat_target[1:] - sat_target[0:-1])
+        f = f/V
+        f = f/f.sum()
+        # create discrtete random variable sampler
+        pmf = rv_discrete(values=(D, f))
+        # take samples
+        if num_samples is None:
+            num_samples = len(self.network['pore.coords'])
+        diameters = pmf.rvs(size=num_samples)
+        
+        return diameters
