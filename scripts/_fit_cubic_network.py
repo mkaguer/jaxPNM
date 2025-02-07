@@ -42,9 +42,10 @@ class FitCubicNetwork:
         self.contact_angle = contact_angle
         self.K_target = K_target
         self.sat_target = sat_target
+        self.x_target = x_target
         self.pressure = pressure
         self.spacing = spacing
-        if x_target is None:
+        if self.x_target is None:
             self.x_target = pressure
 
     def flow(self, D):
