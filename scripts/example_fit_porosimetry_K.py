@@ -45,7 +45,7 @@ plt.ylabel('Saturation')
 # get initial diameters
 key = jax.random.PRNGKey(1)
 D0 = jax.random.uniform(key, shape=(Np,))
-print(f'Initial loss: {fcn.sat_loss(D0)}')  # 6.320036460627565
+print(f'Initial loss: {fcn.sat_loss(D0)}')  # 6.320036519818923
 
 # get initial saturation
 sat0 = fcn.run_invasion(D0)
@@ -54,7 +54,7 @@ plt.plot(pressure, sat0, label='Initial Guess')
 
 # fit porosimetry
 D, loss = fcn.fit_porosimetry(D0, solver=dfx.Euler(), t_span=(0, 1), dt=0.01)
-print(f'Final loss: {fcn.sat_loss(D)}')  # 0.008630249199476726
+print(f'Final loss: {fcn.sat_loss(D)}')  # 0.008636690727463769
 
 # plot AI porosimetry
 sat = fcn.run_invasion(D)
@@ -110,10 +110,10 @@ p = fcn.flow(D)
 K = fcn.calc_K(p)
 print(f'New Solution permeability: {K}')
 
-print(f"Avg D = {jnp.average(D)}")  # 0.4850915090568124
-print(f"Min D = {jnp.min(D)}")  # 0.011316144272656644
-print(f"Max D = {jnp.max(D)}")  # 0.9999999903538638
-print(f"Loss = {loss}")  # 1.1088945252252821e-10
+print(f"Avg D = {jnp.average(D)}")  # 0.48506199146365475
+print(f"Min D = {jnp.min(D)}")  # 0.011316144415577057
+print(f"Max D = {jnp.max(D)}")  # 0.9996275599418726
+print(f"Loss = {loss}")  # 1.1471468426672354e-10
 
 
 # Get porosimetry again

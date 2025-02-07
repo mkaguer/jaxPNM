@@ -19,6 +19,7 @@ class FitCubicNetwork:
                  contact_angle=120,
                  K_target=None,
                  sat_target=None,
+                 x_target=None,
                  pressure=None,
                  spacing=None):
         r"""
@@ -43,6 +44,8 @@ class FitCubicNetwork:
         self.sat_target = sat_target
         self.pressure = pressure
         self.spacing = spacing
+        if x_target is None:
+            self.x_target = pressure
 
     def flow(self, D):
         r"""
@@ -210,6 +213,8 @@ class FitCubicNetwork:
         net = self.network
         # run invasion simulation
         sat = self.run_invasion(D)
+        # interpolate prior to calculating SSE
+        sat = jnp.interp(self.x_target, self.pressure, sat)
         # calculate SSE
         SSE = self.calc_sse(sat, self.sat_target)
         # calculate penalty

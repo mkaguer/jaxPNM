@@ -53,7 +53,7 @@ plt.plot(pressure, sat0, label='Initial Guess')
 
 # fit porosimetry
 D, loss = fcn.fit_porosimetry(D0, solver=dfx.Euler(), t_span=(0, 1), dt=0.01)
-print(f'Final loss: {fcn.sat_loss(D)}')  # 0.0086302491963743
+print(f'Final loss: {fcn.sat_loss(D)}')  # 0.008630249199476726
 
 # plot AI porosimetry
 sat = fcn.run_invasion(D)
