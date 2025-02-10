@@ -18,6 +18,7 @@ class FitCubicNetwork:
                  network,
                  surface_tension=0.072,
                  contact_angle=120,
+                 smoothing_factor=0.01,
                  K_target=None,
                  sat_target=None,
                  x_target=None,
@@ -41,6 +42,7 @@ class FitCubicNetwork:
         self.network = network
         self.surface_tension = surface_tension
         self.contact_angle = contact_angle
+        self.smoothing_factor = smoothing_factor
         self.K_target = K_target
         self.sat_target = sat_target
         self.x_target = x_target
@@ -175,7 +177,7 @@ class FitCubicNetwork:
             # breakout state
             saturation = state
             # apply sigmoid function
-            sf = 0.01 / spacing
+            sf = self.smoothing_factor / spacing
             throat_prob = jax.nn.sigmoid((pressure[i] - invasion_pressure)/sf)
             # find pore probability
             pore_prob = pnm.models.get_max_of_neighbor_throats(net, throat_prob)
@@ -411,7 +413,7 @@ class FitCubicNetwork:
         plt.title(f"Loss Landscape Along D[{index}]")
         plt.show()
 
-    def bundle_of_tubes_rvs(self, num_samples=None):
+    def bundle_of_tubes_rvs(self, num_samples=None, seed=None):
         
         # get experimental data
         sat_target = self.sat_target
@@ -429,10 +431,13 @@ class FitCubicNetwork:
         f = f/V
         f = f/f.sum()
         # create discrtete random variable sampler
-        pmf = rv_discrete(values=(D, f))
+        pmf = rv_discrete(values=(D, f), seed=seed)
         # take samples
         if num_samples is None:
             num_samples = len(self.network['pore.coords'])
         diameters = pmf.rvs(size=num_samples)
+        # divide by spacing so that we have Ds between 0 and spacing!
+        spacing = self.spacing
+        diameters = diameters/spacing
         
         return diameters
