@@ -15,7 +15,7 @@ def make_cubic_network(shape, spacing=1, connectivity=6):
                     connectivity=connectivity,
                     node_prefix='pore',
                     edge_prefix='throat')
-    network = label_faces_cubic(network, rtol=0.0)
+    network = label_faces_cubic(network, rtol=1e-6)
     return network
 
 
