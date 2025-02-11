@@ -92,6 +92,11 @@ class FitCubicNetwork:
         # if working with float64 change A.indptr to int64
         if A.data.dtype == jnp.float64:
             A.indptr = A.indptr.astype(jnp.int64)
+        # scale arrays
+        scale = A.data.max()
+        A.data = A.data/scale
+        b = b/scale
+        # solve
         x = js.linalg.spsolve(A.data, A.indices, A.indptr, b, tol=1e-12)
 
         return x
