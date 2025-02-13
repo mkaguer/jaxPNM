@@ -1,0 +1,94 @@
+import os
+from jax import config
+import jax
+import diffrax as dfx
+import jax.numpy as jnp
+import mypnmlib as pnm
+import matplotlib.pyplot as plt
+from _fit_cubic_network import FitCubicNetwork
+
+os.environ["JAX_PLATFORMS"] = "cpu"
+config.update("jax_enable_x64", True)
+
+# set spacing for data processing
+spacing = 1
+
+# create network with spacing of 1 for optimizer
+net = pnm.network.make_cubic_network(shape=[5, 5, 5], spacing=1)
+
+# get Nt and Np
+Nt = len(net['throat.conns'])
+Np = len(net['pore.coords'])
+
+# get target diameters
+key = jax.random.PRNGKey(0)
+D_target = jax.random.uniform(key, shape=(Np,))
+
+# add the adjacency matrix
+weights = jnp.arange(1, Nt+1)
+am = pnm.network.create_adjacency_matrix(net, weights=weights, fmt='csr')
+net['adjacency_matrix'] = am
+
+# add "constant" Gh properties to network
+net['pore.viscosity'] = jnp.ones(Np) * 1e-3
+net['throat.viscosity'] = jnp.ones(Nt) * 1e-3
+
+# set BCs
+pores = jnp.where(net['pore.left'])[0]
+pnm.simulations.set_BC(net,
+                       pores=pores,
+                       bctype='value',
+                       bcvalues=1.0,
+                       mode='overwrite')
+pores = jnp.where(net['pore.right'])[0]
+pnm.simulations.set_BC(net,
+                       pores=pores,
+                       bctype='value',
+                       bcvalues=0.0,
+                       mode='add')
+
+# add pores to calculate rate
+net['rate_pores'] = pores  # FIXME: cannot do jnp.where inside f!
+
+# create instance of FitCubicNetwork
+pressure = jnp.arange(0.1, 2, 0.01)
+fcn = FitCubicNetwork(net, pressure=pressure, spacing=1)
+
+# get sat_target
+sat_target = fcn.run_invasion(D_target)
+
+# get target permeability
+p = fcn.flow(D_target)
+K_target = fcn.calc_K(p)
+print(f'Target permeability: {K_target}')
+
+# add experimental data
+fcn.sat_target = sat_target
+fcn.x_target = pressure
+fcn.K_target = K_target
+
+# get initial diameters
+key = jax.random.PRNGKey(1)
+D0 = jax.random.uniform(key, shape=(Np,))
+print(f'Initial loss: {fcn.sat_loss(D0)}')  # 6.320036460627565
+
+fcn.loss(D0)
+
+# fit porosimetry
+D, loss = fcn.fit_porosimetry_K(D0, solver=dfx.Euler(), t_span=(0, 0.1), dt=0.01)
+print(f'Final loss: {fcn.sat_loss(D)}')  # 0.008630249196374291
+
+# get initial saturation
+sat = fcn.run_invasion(D)
+sat0 = fcn.run_invasion(D0)
+
+# plot target, initial, and fitted saturations
+plt.figure(1)
+plt.plot(pressure, sat0, label='Initial Guess')
+plt.plot(pressure, sat, label='AI')
+plt.plot(pressure, sat_target, label='target')
+plt.xlabel('Pressures')
+plt.ylabel('Saturation')
+plt.legend()
+plt.show()
+

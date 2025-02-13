@@ -23,7 +23,7 @@ class FitCubicNetwork:
                  sat_target=None,
                  x_target=None,
                  pressure=None,
-                 spacing=None):
+                 spacing=1):
         r"""
         Initializes class with network attribute
 
@@ -387,6 +387,59 @@ class FitCubicNetwork:
 
         return D, loss
 
+    def loss(self, D):
+
+        # choose alpha and beta
+        alpha = 10
+        beta = 1
+        # run invasion simulation
+        sat = self.run_invasion(D)
+        # interpolate prior to calculating SSE
+        sat = jnp.interp(self.x_target, self.pressure, sat)
+        # run flow
+        x = self.flow(D)
+        # calculate K
+        K = self.calc_K(x)
+        # calculate sat_loss
+        sat_loss = self.calc_sse(sat, self.sat_target)/len(sat)
+        # calculate K_loss
+        K_loss = self.mse_loss(K, self.K_target)
+        # calculate combined loss
+        loss = alpha * sat_loss + beta * K_loss
+        # calculate penalty
+        lbd = jnp.maximum(0.0 - D, 0)
+        ubd = jnp.maximum(D - 1.0, 0)
+        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3  # FIXME: what value here?
+        # add penalty to loss
+        loss += penalty
+
+        return loss
+
+    def fit_porosimetry_K(self, D0, solver=dfx.Euler(), t_span=(0, 10), dt=1):
+
+        # retrieve loss function
+        f = self.loss
+        # Define the gradient of f(x)
+        grad_f = jax.grad(f)
+
+        # Define the ODE system for gradient flow: dx/dt = -grad(f)
+        def dydt(t, y, args):
+            return jnp.clip(-grad_f(y), -10.0, 10.0)
+
+        # Time span (we treat the optimization as a "time" evolution)
+        t0, t1 = t_span
+        # Define the ODE problem
+        term = dfx.ODETerm(dydt)
+        # Solve the ODE, treating time as "iterations" for optimization
+        solution = dfx.diffeqsolve(term,
+                                   solver,
+                                   t0=t0, t1=t1, dt0=dt, y0=D0)
+        # The final x value after "evolving" it toward the minimum
+        D = solution.ys[-1]
+        loss = f(D)
+
+        return D, loss
+
     def plot_loss(self, y0, index=0, N=100):
         r"""
         This function allows you to plot the loss of one parameter at a time!
@@ -446,3 +499,19 @@ class FitCubicNetwork:
         diameters = diameters/spacing
         
         return diameters
+            
+    def process_pressure(self, spacing, mode='pre'):
+        
+        if mode == 'pre':
+            self.x_target = self.x_target * spacing
+            self.pressure = self.pressure * spacing
+        if mode == 'post':
+            self.x_target = self.x_target / spacing
+            self.pressure = self.pressure / spacing
+    
+    def process_K(self, spacing, mode='pre'):
+        
+        if mode == 'pre':
+            self.K_target = self.K_target / spacing ** 2
+        if mode == 'post':
+            self.K_target = self.K_target * spacing ** 2
