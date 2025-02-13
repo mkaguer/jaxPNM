@@ -3,3 +3,7 @@
 *.txt
 /notebooks/*
 scripts/__pycache__
+/data/*
+scripts/mypnmlib/models/__pycache__
+scripts/mypnmlib/models/__pycache__
+scripts/mypnmlib/network/__pycache__
