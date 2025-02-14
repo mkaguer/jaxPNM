@@ -83,14 +83,14 @@ fcn.process_pressure(spacing=spacing, mode='pre')
 fcn.process_K(spacing=spacing, mode='pre')
 
 print(f'Initial porosimetry loss: {fcn.sat_loss(D0)}')  # 0.16252246185541455
-print(f'Initial flow loss: {fcn.K_loss(D0)}')  # 6.320036460627565
+print(f'Initial flow loss: {fcn.K_loss(D0)}')  # 0.5353140484324299
 
 fcn.loss(D0)
 
 # fit porosimetry
 D, loss = fcn.fit_porosimetry_K(D0, solver=dfx.Euler(), t_span=(0, 30), dt=0.1)
-print(f'Final loss: {fcn.sat_loss(D)}')  # 0.008630249196374291
-print(f'Final flow loss: {fcn.K_loss(D)}')  # 6.320036460627565
+print(f'Final porosimetry loss: {fcn.sat_loss(D)}')  # 0.0027906534331629384
+print(f'Final flow loss: {fcn.K_loss(D)}')  # 2.388476468207077e-05
 p = fcn.flow(D)
 print(f'Target permeability: {K_target} [m^2]')
 print(f'final permeability: {fcn.calc_K(p)*spacing**2} [m^2]')
