@@ -313,8 +313,7 @@ class FitCubicNetwork:
 
         return mse
 
-    def K_loss(self, D, net):
-        # FIXME: remove net from args?
+    def K_loss(self, D):
         # run flow simulation
         x = self.flow(D)
         # calculate permeability
