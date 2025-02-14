@@ -6,6 +6,7 @@ import diffrax as dfx
 import mypnmlib as pnm
 from jax import lax
 from scipy.stats import rv_discrete
+import scipy as sp
 
 
 class FitCubicNetwork:
@@ -514,3 +515,25 @@ class FitCubicNetwork:
             self.K_target = self.K_target / spacing ** 2
         if mode == 'post':
             self.K_target = self.K_target * spacing ** 2
+ 
+    def sample_weibull(self, num_samples, shape, scale, seed=1):
+
+        # create distribution
+        w_dist = sp.stats.weibull_min(c=shape, scale=scale, loc=0)
+        # find min/max seeds
+        min_seed = w_dist.cdf(x=1e-3)
+        max_seed = w_dist.cdf(x=1)
+        # generate uniform distribution of seeds from 0 to max_seed
+        u_dist = sp.stats.uniform(loc=min_seed, scale=max_seed)
+        seeds = u_dist.rvs(num_samples)
+        # use ppf to get diameters from seed values
+        D = w_dist.ppf(seeds)
+
+        return D
+
+    def fit_weibull(self, D):
+
+        shape, loc, scale = sp.stats.weibull_min.fit(D, floc=0)
+
+        return shape, scale
+
