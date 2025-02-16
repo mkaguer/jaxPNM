@@ -407,7 +407,7 @@ class FitCubicNetwork:
         # calculate combined loss
         loss = alpha * sat_loss + beta * K_loss
         # calculate penalty
-        lbd = jnp.maximum(0.0 - D, 0)
+        lbd = jnp.maximum(1e-3 - D, 0)
         ubd = jnp.maximum(D - 1.0, 0)
         penalty = jnp.sum(lbd**2 + ubd**2) * 1e3  # FIXME: what value here?
         # add penalty to loss
@@ -415,7 +415,12 @@ class FitCubicNetwork:
 
         return loss
 
-    def fit_porosimetry_K(self, D0, solver=dfx.Euler(), t_span=(0, 10), dt=1):
+    def fit_porosimetry_K(self,
+                          D0,
+                          solver=dfx.Euler(),
+                          t_span=(0, 10),
+                          dt=1,
+                          clip=(-10, 10)):
 
         # retrieve loss function
         f = self.loss
@@ -424,7 +429,7 @@ class FitCubicNetwork:
 
         # Define the ODE system for gradient flow: dx/dt = -grad(f)
         def dydt(t, y, args):
-            return jnp.clip(-grad_f(y), -10.0, 10.0)
+            return jnp.clip(-grad_f(y), clip[0], clip[1])
 
         # Time span (we treat the optimization as a "time" evolution)
         t0, t1 = t_span
