@@ -35,12 +35,12 @@ def calc_conductance(network):
     return jnp.pi * R ** 4 / 8 / mu / L
 
 
-def throat_diameter(network):
+def throat_diameter(network, tsf):
 
     D = network['pore.diameter']
     conns = network['throat.conns']
 
-    return 0.5 * jnp.min(jnp.abs(D[conns]), axis=1)
+    return tsf * jnp.min(jnp.abs(D[conns]), axis=1)
 
 
 def hydraulic_size_factor(network,

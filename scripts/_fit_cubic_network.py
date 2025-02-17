@@ -52,7 +52,7 @@ class FitCubicNetwork:
         if self.x_target is None:
             self.x_target = pressure
 
-    def flow(self, D):
+    def flow(self, D, tsf=0.5):
         r"""
         Runs a flow simulation on the network using diameter D
 
@@ -76,7 +76,7 @@ class FitCubicNetwork:
         # update D
         net['pore.diameter'] = D * spacing  # FIXME: not enforcine size of arrays!
         # update models that depend on D
-        net['throat.diameter'] = pnm.models.throat_diameter(net)
+        net['throat.diameter'] = pnm.models.throat_diameter(net, tsf)
         net['throat.hydraulic_size_factors'] = pnm.models.hydraulic_size_factor(net)
         # calculate conductance G
         G = pnm.models.generic_hydraulic(net)
@@ -101,7 +101,7 @@ class FitCubicNetwork:
         x = js.linalg.spsolve(A.data, A.indices, A.indptr, b, tol=1e-12)
 
         return x
-    
+
     def find_invasion_pressure(self):
 
         # get network
@@ -149,7 +149,7 @@ class FitCubicNetwork:
 
         return invasion_pressure
 
-    def run_invasion(self, D):
+    def run_invasion(self, D, tsf=0.5):
 
         # get network
         net = self.network
@@ -158,7 +158,7 @@ class FitCubicNetwork:
         # set pore diameter
         net['pore.diameter'] = D * spacing
         # regenerate geometry models
-        net['throat.diameter'] = pnm.models.throat_diameter(network=net)
+        net['throat.diameter'] = pnm.models.throat_diameter(net, tsf)
         net['throat.length'] = pnm.models.throat_length(network=net)
         net['pore.volume'] = pnm.models.sphere(network=net)
         net['throat.total_volume'] = pnm.models.cylinder(network=net)
@@ -170,7 +170,7 @@ class FitCubicNetwork:
         net['throat.surface_tension'] = self.surface_tension
         Pc = pnm.models.washburn(network=net)
         net['throat.entry_pressure'] = Pc
-        # get pressure 
+        # get pressure
         pressure = self.pressure
         # get invasion pressures (Nt,)
         invasion_pressure = self.find_invasion_pressure()
@@ -445,6 +445,69 @@ class FitCubicNetwork:
 
         return D, loss
 
+    def loss_dist(self, w):
+
+        # choose alpha and beta
+        alpha = 1
+        beta = 1
+        # retrieve network
+        net = self.network
+        # get Np and Nt
+        Np = len(net['pore.coords'])
+        Nt = len(net['throat.conns'])
+        # breakout w
+        lambda_p, k_p, lambda_t, k_t = w
+        # sample weibull to get diameters
+        D = self.sample_weibull_jax(Np, k_p, lambda_p)
+        # sample weibull to get throat size factors
+        tsf = self.sample_weibull_jax(Nt, k_t, lambda_t)
+        # run invasion simulation
+        sat = self.run_invasion(D, tsf)
+        # interpolate prior to calculating SSE
+        sat = jnp.interp(self.x_target, self.pressure, sat)
+        # run flow
+        x = self.flow(D, tsf)
+        # calculate K
+        K = self.calc_K(x)
+        # calculate sat_loss
+        sat_loss = self.calc_sse(sat, self.sat_target)/len(sat)
+        # calculate K_loss
+        K_loss = self.mse_loss(K, self.K_target)
+        # calculate combined loss
+        loss = alpha * sat_loss + beta * K_loss
+
+        return loss
+
+    def fit_porosimetry_K_dist(self,
+                               w0,
+                               solver=dfx.Euler(),
+                               t_span=(0, 10),
+                               dt=1,
+                               clip=(-10, 10)):
+
+        # retrieve loss function
+        f = self.loss_dist
+        # Define the gradient of f(x)
+        grad_f = jax.grad(f)
+
+        # Define the ODE system for gradient flow: dx/dt = -grad(f)
+        def dydt(t, y, args):
+            return jnp.clip(-grad_f(y), clip[0], clip[1])
+
+        # Time span (we treat the optimization as a "time" evolution)
+        t0, t1 = t_span
+        # Define the ODE problem
+        term = dfx.ODETerm(dydt)
+        # Solve the ODE, treating time as "iterations" for optimization
+        solution = dfx.diffeqsolve(term,
+                                   solver,
+                                   t0=t0, t1=t1, dt0=dt, y0=w0)
+        # The final x value after "evolving" it toward the minimum
+        D = solution.ys[-1]
+        loss = f(D)
+
+        return D, loss
+
     def plot_loss(self, y0, index=0, N=100):
         r"""
         This function allows you to plot the loss of one parameter at a time!
@@ -477,7 +540,7 @@ class FitCubicNetwork:
         plt.show()
 
     def bundle_of_tubes_rvs(self, num_samples=None, seed=None):
-        
+
         # get experimental data
         sat_target = self.sat_target
         x_target = self.x_target
@@ -502,25 +565,25 @@ class FitCubicNetwork:
         # divide by spacing so that we have Ds between 0 and spacing!
         spacing = self.spacing
         diameters = diameters/spacing
-        
+
         return diameters
-            
+
     def process_pressure(self, spacing, mode='pre'):
-        
+
         if mode == 'pre':
             self.x_target = self.x_target * spacing
             self.pressure = self.pressure * spacing
         if mode == 'post':
             self.x_target = self.x_target / spacing
             self.pressure = self.pressure / spacing
-    
+
     def process_K(self, spacing, mode='pre'):
-        
+
         if mode == 'pre':
             self.K_target = self.K_target / spacing ** 2
         if mode == 'post':
             self.K_target = self.K_target * spacing ** 2
- 
+
     def sample_weibull(self, num_samples, shape, scale, seed=1):
 
         # create distribution
@@ -536,9 +599,33 @@ class FitCubicNetwork:
 
         return D
 
+    def sample_weibull_jax(self, num_samples, shape, scale, seed=1):
+
+        # Create a PRNG key
+        key = jax.random.PRNGKey(seed)
+
+        def weibull_cdf(x, shape, scale):
+            return 1 - jnp.exp(- (x / scale) ** shape)
+
+        # Compute the CDF values at the truncation bounds
+        min_seed = weibull_cdf(1e-3, shape, scale)
+        max_seed = weibull_cdf(1.0, shape, scale)
+        # Generate uniform samples in [min_cdf, max_cdf]
+        u_samples = jax.random.uniform(key,
+                                       shape=(num_samples,),
+                                       minval=min_seed,
+                                       maxval=max_seed)
+
+        def weibull_ppf(p, shape, scale):
+            return scale * (-jnp.log(1 - p)) ** (1 / shape)
+
+        # Apply the inverse CDF (PPF) to get samples from the truncated Weibull
+        D = weibull_ppf(u_samples, shape, scale)
+
+        return D
+
     def fit_weibull(self, D):
 
         shape, loc, scale = sp.stats.weibull_min.fit(D, floc=0)
 
         return shape, scale
-
