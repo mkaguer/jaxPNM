@@ -365,8 +365,8 @@ class FitCubicNetwork:
         grad_f = jax.grad(f)
 
         # Define the ODE system for gradient flow: dx/dt = -grad(f)
-        def dydt(t, y, net):
-            return -grad_f(y, net)
+        def dydt(t, y, args):
+            return -grad_f(y)
 
         # Time span (we treat the optimization as a "time" evolution)
         t0, t1 = t_span
@@ -379,11 +379,10 @@ class FitCubicNetwork:
                                    t1=t1,
                                    dt0=dt,
                                    y0=D0,
-                                   args=net,
                                    max_steps=max_steps)
         # The final x value after "evolving" it toward the minimum
         D = solution.ys[-1]
-        loss = f(D, net)
+        loss = f(D)
 
         return D, loss
 
@@ -531,7 +530,7 @@ class FitCubicNetwork:
         f = self.K_loss
         # calculate loss for each D
         D_vals = jnp.linspace(0.01, 1.0, N)
-        losses = jnp.array([f(y0.at[index].set(D), net) for D in D_vals])
+        losses = jnp.array([f(y0.at[index].set(D)) for D in D_vals])
         # plot D_vals versus loss
         plt.plot(D_vals, losses)
         plt.xlabel(f"D[{index}]")
