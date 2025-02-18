@@ -35,7 +35,7 @@ def calc_conductance(network):
     return jnp.pi * R ** 4 / 8 / mu / L
 
 
-def throat_diameter(network, tsf):
+def throat_diameter(network, tsf=0.5):
 
     D = network['pore.diameter']
     conns = network['throat.conns']
