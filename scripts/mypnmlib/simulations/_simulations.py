@@ -68,7 +68,7 @@ def set_BC(net, pores, bctype, bcvalues, mode='overwrite'):
         raise ValueError(f"{bctype} is not a supported bctype")
 
 
-def apply_BC(net):
+def apply_BC(net, axis=''):
 
     """Applies specified boundary conditions by modifying A and b."""
     # get pure A and pure b from network
@@ -79,21 +79,21 @@ def apply_BC(net):
         ind = jnp.isfinite(net['pore.bc.rate'])
         b = b.at[ind].set(-net['pore.bc.rate'][ind])  # negative for production
     # apply value BC to A and b
-    if 'pore.bc.value' in net.keys():
+    if 'pore.bc.value' + axis in net.keys():
         Np = len(net['pore.coords'])
         # get average of diagonal, note this only works for 'coo' format
         diag = A.data[0:Np]  # this only works for 'coo' format
         f = diag.mean()
         # Update b (impose bc values)
-        bc_values = net['pore.bc.value']
-        bc_mask = net['pore.bc.mask']
+        bc_values = net['pore.bc.value' + axis]
+        bc_mask = net['pore.bc.mask' + axis]
         b = jnp.where(bc_mask, bc_values*f, b)
         # Update b (subtract quantities from b to keep A symmetric)
         x_BC = jnp.where(bc_mask, bc_values, 0.0)
         temp = b - A @ x_BC
         b = jnp.where(bc_mask, b, temp)
         # update A
-        P_bc = net['boundary_pores']  # FIXME: Is there a way aroung this?
+        P_bc = net['boundary_pores' + axis]  # FIXME: Is there way aroung this?
         mask = jnp.isin(A.indices[:, 0], P_bc) | jnp.isin(A.indices[:, 1], P_bc)
         A_data = jnp.where(mask, 0, A.data)
         # Add diagonal entries back into A
