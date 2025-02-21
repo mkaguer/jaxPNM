@@ -61,7 +61,7 @@ fcn.sat_target = sat_target
 x = fcn.flow(D_target, tsf_target)
 K_target = fcn.calc_K(x)
 fcn.K_target = K_target
-print(f'Target Permeability: {K_target}')
+print(f'Target Permeability: {K_target}')  # 2.0834366271421264e-05
 
 # plot target saturation
 plt.figure(1)
@@ -73,7 +73,7 @@ plt.ylabel('Saturation')
 D0 = fcn.bundle_of_tubes_rvs(Np, seed=1) * 2
 shape0, scale0 = fcn.fit_weibull(D0)
 w0 = jnp.array([scale0, shape0, scale0, shape0])
-print(f'Initial loss: {fcn.loss_dist(w0)}')  # 6.320036460627565
+print(f'Initial loss: {fcn.loss_dist(w0)}')  # 0.8936073899721305
 
 # get initial saturation
 D0 = fcn.sample_weibull_jax(Np, shape0, scale0)
@@ -86,7 +86,7 @@ plt.plot(pressure, sat0, label='Initial Guess')
 w, loss = fcn.fit_porosimetry_K_dist(w0,
                                      solver=dfx.Euler(),
                                      t_span=(0, 0.1), dt=0.001, clip=(-10, 10))
-print(f'Final loss: {loss}')  # 0.008630249199476726
+print(f'Final loss: {loss}')  # 0.0037254820612184466
 
 # sample D and tsf from weibull
 lambda_p, k_p, lambda_t, k_t = w
@@ -103,5 +103,5 @@ plt.show()
 # check permeability
 x = fcn.flow(D, tsf)
 K = fcn.calc_K(x)
-print(f'Fitted Permeability: {K}')
+print(f'Fitted Permeability: {K}')  # 2.1105243467149116e-05
 

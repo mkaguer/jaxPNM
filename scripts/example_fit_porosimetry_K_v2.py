@@ -33,7 +33,7 @@ net['adjacency_matrix'] = am
 net['pore.viscosity'] = jnp.ones(Np) * 1e-3
 net['throat.viscosity'] = jnp.ones(Nt) * 1e-3
 
-# set BCs
+# set BCs in x direction
 pores = jnp.where(net['pore.left'])[0]
 pnm.simulations.set_BC(net,
                        pores=pores,
@@ -46,9 +46,49 @@ pnm.simulations.set_BC(net,
                        bctype='value',
                        bcvalues=0.0,
                        mode='add')
+net['pore.bc.valuex'] = net['pore.bc.value']
+net['pore.bc.maskx'] = net['pore.bc.mask']
+net['boundary_poresx'] = net['boundary_pores']
+net['rate_poresx'] = pores
+del net['pore.bc.value'], net['pore.bc.mask'], net['boundary_pores']
 
-# add pores to calculate rate
-net['rate_pores'] = pores  # FIXME: cannot do jnp.where inside f!
+# set BCs in y direction
+pores = jnp.where(net['pore.front'])[0]
+pnm.simulations.set_BC(net,
+                       pores=pores,
+                       bctype='value',
+                       bcvalues=1.0,
+                       mode='overwrite')
+pores = jnp.where(net['pore.back'])[0]
+pnm.simulations.set_BC(net,
+                       pores=pores,
+                       bctype='value',
+                       bcvalues=0.0,
+                       mode='add')
+net['pore.bc.valuey'] = net['pore.bc.value']
+net['pore.bc.masky'] = net['pore.bc.mask']
+net['boundary_poresy'] = net['boundary_pores']
+net['rate_poresy'] = pores
+del net['pore.bc.value'], net['pore.bc.mask'], net['boundary_pores']
+
+# set BCs in z direction
+pores = jnp.where(net['pore.bottom'])[0]
+pnm.simulations.set_BC(net,
+                       pores=pores,
+                       bctype='value',
+                       bcvalues=1.0,
+                       mode='overwrite')
+pores = jnp.where(net['pore.top'])[0]
+pnm.simulations.set_BC(net,
+                       pores=pores,
+                       bctype='value',
+                       bcvalues=0.0,
+                       mode='add')
+net['pore.bc.valuez'] = net['pore.bc.value']
+net['pore.bc.maskz'] = net['pore.bc.mask']
+net['boundary_poresz'] = net['boundary_pores']
+net['rate_poresz'] = pores
+del net['pore.bc.value'], net['pore.bc.mask'], net['boundary_pores']
 
 # create instance of FitCubicNetwork
 pressure = jnp.arange(0.1, 2, 0.01)
@@ -58,8 +98,14 @@ fcn = FitCubicNetwork(net, pressure=pressure, spacing=1)
 sat_target = fcn.run_invasion(D_target)
 
 # get target permeability
-p = fcn.flow(D_target)
-K_target = fcn.calc_K(p)
+px = fcn.flow(D_target, axis='x')
+Kx_target = fcn.calc_K(px, axis='x')
+py = fcn.flow(D_target, axis='y')
+Ky_target = fcn.calc_K(py, axis='y')
+pz = fcn.flow(D_target, axis='z')
+Kz_target = fcn.calc_K(pz, axis='z')
+
+K_target = jnp.array([Kx_target, Ky_target, Kz_target])
 print(f'Target permeability: {K_target}')
 
 # add experimental data
@@ -72,10 +118,8 @@ key = jax.random.PRNGKey(1)
 D0 = jax.random.uniform(key, shape=(Np,))
 print(f'Initial loss: {fcn.sat_loss(D0)}')  # 6.320036460627565
 
-fcn.loss(D0)
-
 # fit porosimetry
-D, loss = fcn.fit_porosimetry_K(D0, solver=dfx.Euler(), t_span=(0, 0.1), dt=0.01)
+D, loss = fcn.fit_porosimetry_K(D0, solver=dfx.Euler(), t_span=(0, 10), dt=0.1)
 print(f'Final loss: {fcn.sat_loss(D)}')  # 0.008630249196374291
 
 # get initial saturation

@@ -52,7 +52,7 @@ class FitCubicNetwork:
         if self.x_target is None:
             self.x_target = pressure
 
-    def flow(self, D, tsf=0.5):
+    def flow(self, D, tsf=0.5, axis=''):
         r"""
         Runs a flow simulation on the network using diameter D
 
@@ -87,7 +87,7 @@ class FitCubicNetwork:
         net['A'] = A
         net['b'] = b
         # apply BCs
-        A, b = pnm.simulations.apply_BC(net)
+        A, b = pnm.simulations.apply_BC(net, axis)
         # solve Ax = b
         A = js.BCSR.from_bcoo(A)  # need CSR format for linalg.spsolve!
         # if working with float64 change A.indptr to int64
@@ -261,7 +261,7 @@ class FitCubicNetwork:
 
         return D, loss
 
-    def calc_K(self, x):
+    def calc_K(self, x, axis=''):
 
         # get network
         net = self.network
@@ -270,7 +270,7 @@ class FitCubicNetwork:
         # get coords
         coords = net['pore.coords']
         # calc flow rate
-        pores = net['rate_pores']
+        pores = net['rate_pores' + axis]
         Q = -1*pnm.simulations.rate(net, x, pores=pores)[0]
         # FIXME: add shape as network attribute
         # get length, width, and height of network
@@ -280,8 +280,8 @@ class FitCubicNetwork:
         # calculate area perpendicular to flow, assumes flow in x-direction
         A = w * h
         # get deltaP
-        P1 = jnp.max(net['pore.bc.value'][net['pore.bc.mask']])
-        P2 = jnp.min(net['pore.bc.value'][net['pore.bc.mask']])
+        P1 = jnp.max(net['pore.bc.value' + axis][net['pore.bc.mask' + axis]])
+        P2 = jnp.min(net['pore.bc.value' + axis][net['pore.bc.mask' + axis]])
         deltaP = P1 - P2
         # viscosity
         mu = net['pore.viscosity'][0]
@@ -443,6 +443,70 @@ class FitCubicNetwork:
         loss = f(D)
 
         return D, loss
+    
+    def loss_xyz(self, D):
+
+        # choose alpha and beta
+        alpha = 10
+        beta = 1
+        # run invasion simulation
+        sat = self.run_invasion(D)
+        # interpolate prior to calculating SSE
+        sat = jnp.interp(self.x_target, self.pressure, sat)
+        # run flow in x
+        x = self.flow(D, axis='x')
+        Kx = self.calc_K(x, axis='x')
+        # run flow in y
+        y = self.flow(D, axis='y')
+        Ky = self.calc_K(y, axis='y')
+        # run flow in y
+        z = self.flow(D, axis='z')
+        Kz = self.calc_K(z, axis='z')
+        # calculate sat_loss
+        sat_loss = self.calc_sse(sat, self.sat_target)/len(sat)
+        # calculate K_loss
+        K = jnp.array([Kx, Ky, Kz])
+        K_loss = self.mse_loss(K, self.K_target)
+        # calculate combined loss
+        loss = alpha * sat_loss + beta * K_loss
+        # calculate penalty
+        lbd = jnp.maximum(1e-3 - D, 0)
+        ubd = jnp.maximum(D - 1.0, 0)
+        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3  # FIXME: what value here?
+        # add penalty to loss
+        loss += penalty
+
+        return loss
+
+    def fit_porosimetry_Kxyz(self,
+                             D0,
+                             solver=dfx.Euler(),
+                             t_span=(0, 10),
+                             dt=1,
+                             clip=(-10, 10)):
+
+        # retrieve loss function
+        f = self.loss_xyz
+        # Define the gradient of f(x)
+        grad_f = jax.grad(f)
+
+        # Define the ODE system for gradient flow: dx/dt = -grad(f)
+        def dydt(t, y, args):
+            return jnp.clip(-grad_f(y), clip[0], clip[1])
+
+        # Time span (we treat the optimization as a "time" evolution)
+        t0, t1 = t_span
+        # Define the ODE problem
+        term = dfx.ODETerm(dydt)
+        # Solve the ODE, treating time as "iterations" for optimization
+        solution = dfx.diffeqsolve(term,
+                                   solver,
+                                   t0=t0, t1=t1, dt0=dt, y0=D0)
+        # The final x value after "evolving" it toward the minimum
+        D = solution.ys[-1]
+        loss = f(D)
+
+        return D, loss
 
     def loss_dist(self, w):
 
@@ -524,8 +588,6 @@ class FitCubicNetwork:
             0 to 1 (default is 100).
 
         """
-        # retrieve network
-        net = self.network
         # retrieve loss function
         f = self.K_loss
         # calculate loss for each D
