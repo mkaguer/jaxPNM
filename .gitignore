@@ -1,6 +1,7 @@
 # My .gitignore file types
 *.docx
 *.txt
+*.pptx
 /images/*
 /notebooks/*
 /figures/*
