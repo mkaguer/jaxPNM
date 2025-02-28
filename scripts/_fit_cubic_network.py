@@ -135,7 +135,8 @@ class FitCubicNetwork:
             invaded_throats = invaded_throats.at[index].set(True)
             # update invaded pores, find ALL pores neighboring invaded throats!
             throats = jnp.where(invaded_throats, jnp.arange(Nt), -1)
-            invaded_pores = pnm.models.find_neighbor_pores(net, throats)
+            invaded_pores_new = pnm.models.find_neighbor_pores(net, throats)
+            invaded_pores = invaded_pores + invaded_pores_new
             return invaded_throats, invaded_pores, pressure, invasion_pressure
 
         # initialize state for the for loop
@@ -175,7 +176,7 @@ class FitCubicNetwork:
         # get invasion pressures (Nt,)
         invasion_pressure = self.find_invasion_pressure()
         # get volumes
-        vp = jnp.where(net['pore.left'], 0.0, net['pore.volume'])
+        vp = net['pore.volume']
         vt = net['throat.volume']
         total_volume = jnp.sum(vp) + jnp.sum(vt)
 
