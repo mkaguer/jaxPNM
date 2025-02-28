@@ -27,7 +27,7 @@ Np = len(net['pore.coords'])
 
 # load experimental data
 image = 'Berea'
-data = jnp.array(np.loadtxt(image + '.csv', delimiter=','))
+data = jnp.array(np.loadtxt('../data/' + image + '.csv', delimiter=','))
 sat_target = data[:, 1]
 x_target = data[:, 0]  # interpolate?
 
