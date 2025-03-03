@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 from _fit_cubic_network import FitCubicNetwork
 import numpy as np
 
-# os.environ["JAX_PLATFORMS"] = "cpu"
-config.update("jax_enable_x64", False)
+os.environ["JAX_PLATFORMS"] = "cpu"
+config.update("jax_enable_x64", True)
 
 # set spacing for data processing
 spacing = 1e-4
