@@ -115,7 +115,7 @@ class FitCubicNetwork:
         max_pc = jnp.max(pc)
         # initialize invaded_throats and invaded_pores
         invaded_throats = jnp.zeros(Nt, dtype=bool)
-        invaded_pores = net['pore.left']  # FIXME: update so it gets from bc
+        invaded_pores = net['pore.boundary']  # FIXME: update so it gets from bc
 
         def body_fun(i, state):
             # breakout state
