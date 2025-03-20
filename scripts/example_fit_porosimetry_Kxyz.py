@@ -33,6 +33,16 @@ net['adjacency_matrix'] = am
 net['pore.viscosity'] = jnp.ones(Np) * 1e-3
 net['throat.viscosity'] = jnp.ones(Nt) * 1e-3
 
+# assign boundary pores
+net['pore.boundary'] = (
+    net['pore.left'] +
+    net['pore.right'] +
+    net['pore.back'] +
+    net['pore.front'] +
+    net['pore.top'] +
+    net['pore.bottom']
+)
+
 # set BCs in x direction
 pores = jnp.where(net['pore.left'])[0]
 pnm.simulations.set_BC(net,
@@ -106,7 +116,7 @@ pz = fcn.flow(D_target, axis='z')
 Kz_target = fcn.calc_K(pz, axis='z')
 
 K_target = jnp.array([Kx_target, Ky_target, Kz_target])
-print(f'Target permeability: {K_target}')
+print(f'Target permeability: {K_target}')  # [0.00011388 0.00010884 0.0001218 ]
 
 # add experimental data
 fcn.sat_target = sat_target
@@ -116,11 +126,11 @@ fcn.K_target = K_target
 # get initial diameters
 key = jax.random.PRNGKey(1)
 D0 = jax.random.uniform(key, shape=(Np,))
-print(f'Initial loss: {fcn.sat_loss(D0)}')  # 6.320036460627565
+print(f'Initial loss: {fcn.sat_loss(D0)}')  # 2.522691006452184
 
 # fit porosimetry
-D, loss = fcn.fit_porosimetry_K(D0, solver=dfx.Euler(), t_span=(0, 10), dt=0.1)
-print(f'Final loss: {fcn.sat_loss(D)}')  # 0.008630249196374291
+D, loss = fcn.fit_porosimetry_Kxyz(D0, solver=dfx.Euler(), t_span=(0, 10), dt=0.1)
+print(f'Final loss: {fcn.sat_loss(D)}')  # 0.014499245785742104
 
 # get initial saturation
 sat = fcn.run_invasion(D)

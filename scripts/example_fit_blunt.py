@@ -41,6 +41,17 @@ net['adjacency_matrix'] = am
 net['pore.viscosity'] = jnp.ones(Np) * 1e-3
 net['throat.viscosity'] = jnp.ones(Nt) * 1e-3
 
+# assign boundary pores
+net['pore.boundary'] = (
+    net['pore.left'] +
+    net['pore.right'] +
+    net['pore.back'] +
+    net['pore.front'] +
+    net['pore.top'] +
+    net['pore.bottom']
+)
+
+
 # set BCs in x direction
 pores = jnp.where(net['pore.left'])[0]
 pnm.simulations.set_BC(net,
