@@ -13,7 +13,7 @@ config.update("jax_enable_x64", False)
 
 # ps.visualization.set_mpl_style()
 
-image = "A1"
+image = "S9"
 
 # set properties
 sigma = 0.4791
@@ -89,14 +89,14 @@ ax = plt.gca()  # Get current axes
 # Make the bounding box bold
 for spine in ax.spines.values():
     spine.set_linewidth(2)
-ax.tick_params(direction='out', length=5, width=2)
+ax.tick_params(direction='in', length=5, width=2)
 # Set x-axis to scientific notation
 ax.xaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
 ax.xaxis.get_offset_text().set_fontsize(14)  # Adjust offset text size
 ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))  # Force scientific notation 
 plt.plot(x_target, sat0, label='Initial Guess', color='tab:blue', marker='o', markerfacecolor='none', markersize=9, linewidth=2.5)
 plt.plot(x_target, sat, label='JAX', color='tab:purple', marker='o', markerfacecolor='none', markersize=9, linewidth=2.5)
-plt.plot(x_target, sat_target, label='Target', color='tab:green', marker='^', markerfacecolor='none', markersize=9, linewidth=2.5)
+plt.plot(x_target, sat_target, label='Target', color='tab:green', linestyle='--', marker='^', markerfacecolor='none', markersize=9, linewidth=2.5)
 plt.xlabel('Pressure (Pa)', fontsize=14)
 plt.ylabel('Saturation', fontsize=14)
 plt.xticks(fontsize=12)
@@ -142,7 +142,7 @@ ax = plt.gca()  # Get current axes
 # Make the bounding box bold
 for spine in ax.spines.values():
     spine.set_linewidth(2)
-ax.tick_params(direction='out', length=5, width=2) 
+ax.tick_params(direction='in', length=5, width=2) 
 x = jnp.arange(len(K_fitted))
 bar_width = 0.25
 plt.bar(x, K_target, width=bar_width, label='Target', color='tab:green')
