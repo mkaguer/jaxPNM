@@ -7,12 +7,14 @@ import mypnmlib as pnm
 from jax import lax
 from scipy.stats import rv_discrete
 import scipy as sp
+import numpy as np
 
 
 class FitCubicNetwork:
     """
     A class for fitting a cubic network to experimental data using automatic
-    differentiation in JAX
+    differentiation in JAX. The functions ending with Final are what I used
+    for the final results in the paper.
     """
 
     def __init__(self,
@@ -444,7 +446,7 @@ class FitCubicNetwork:
         loss = f(D)
 
         return D, loss
-    
+
     def loss_xyz(self, D):
 
         # choose alpha and beta
@@ -471,7 +473,7 @@ class FitCubicNetwork:
         # calculate combined loss
         loss = alpha * sat_loss + beta * K_loss
         # calculate penalty
-        lbd = jnp.maximum(1e-3 - D, 0)
+        lbd = jnp.maximum(1e-2 - D, 0)
         ubd = jnp.maximum(D - 1.0, 0)
         penalty = jnp.sum(lbd**2 + ubd**2) * 1e3  # FIXME: what value here?
         # add penalty to loss
@@ -508,6 +510,78 @@ class FitCubicNetwork:
         loss = f(D)
 
         return D, loss
+
+    def loss_Final(self, w):
+
+        # split out tsf and D from w
+        Nt = len(self.network['throat.conns'])
+        tsf = w[0:Nt]
+        D = w[Nt:]
+        # choose alpha and beta
+        alpha = 10
+        beta = 1
+        # run invasion simulation
+        sat = self.run_invasion(D, tsf=tsf)
+        # interpolate prior to calculating SSE
+        sat = jnp.interp(self.x_target, self.pressure, sat)
+        # run flow in x
+        x = self.flow(D, axis='x', tsf=tsf)
+        Kx = self.calc_K(x, axis='x')
+        # run flow in y
+        y = self.flow(D, axis='y', tsf=tsf)
+        Ky = self.calc_K(y, axis='y')
+        # run flow in y
+        z = self.flow(D, axis='z', tsf=tsf)
+        Kz = self.calc_K(z, axis='z')
+        # calculate sat_loss
+        sat_loss = self.calc_sse(sat, self.sat_target)/len(sat)
+        # calculate K_loss
+        K = jnp.array([Kx, Ky, Kz])
+        K_loss = self.mse_loss(K, self.K_target)
+        # calculate combined loss
+        loss = alpha * sat_loss + beta * K_loss
+        # calculate penalty for D and add
+        lbd = jnp.maximum(1e-2 - D, 0)
+        ubd = jnp.maximum(D - 0.99, 0)
+        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3  # FIXME: what value here?
+        loss += penalty
+        # calculate penalty for tsf and add
+        lbd = jnp.maximum(1e-2 - tsf, 0)
+        ubd = jnp.maximum(tsf - 0.95, 0)
+        penalty = jnp.sum(lbd**2 + ubd**2) * 1e3  # FIXME: what value here?
+        loss += penalty
+
+        return loss
+    
+    def fit_porosimetry_K_Final(self,
+                                w0,
+                                solver=dfx.Euler(),
+                                t_span=(0, 10),
+                                dt=1,
+                                clip=(-10, 10)):
+
+        # retrieve loss function
+        f = self.loss_Final
+        # Define the gradient of f(x)
+        grad_f = jax.grad(f)
+
+        # Define the ODE system for gradient flow: dx/dt = -grad(f)
+        def dydt(t, y, args):
+            return jnp.clip(-grad_f(y), clip[0], clip[1])
+
+        # Time span (we treat the optimization as a "time" evolution)
+        t0, t1 = t_span
+        # Define the ODE problem
+        term = dfx.ODETerm(dydt)
+        # Solve the ODE, treating time as "iterations" for optimization
+        solution = dfx.diffeqsolve(term,
+                                   solver,
+                                   t0=t0, t1=t1, dt0=dt, y0=w0)
+        # The final x value after "evolving" it toward the minimum
+        w = solution.ys[-1]
+        loss = f(w)
+
+        return w, loss
 
     def loss_dist(self, w):
 
@@ -648,6 +722,8 @@ class FitCubicNetwork:
 
     def sample_weibull(self, num_samples, shape, scale, seed=1):
 
+        # set random seed
+        np.random.seed(seed)
         # create distribution
         w_dist = sp.stats.weibull_min(c=shape, scale=scale, loc=0)
         # find min/max seeds
