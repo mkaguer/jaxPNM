@@ -13,14 +13,13 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from scipy.spatial import cKDTree
 import jax
 import pandas as pd
-import porespy as ps
 
 np.random.seed(0)
 
 os.environ["JAX_PLATFORMS"] = "cpu"
 config.update("jax_enable_x64", False)
 
-image = "S5"
+image = "Berea"
 bw_method = 0.01
 
 # set properties
@@ -304,17 +303,17 @@ plt.figure(1, dpi=500)
 ax = plt.gca()  # Get current axes
 # Make the bounding box bold
 for spine in ax.spines.values():
-    spine.set_linewidth(2)
-ax.tick_params(direction='in', length=5, width=2)
+    spine.set_linewidth(3)
+ax.tick_params(direction='in', length=6, width=3)
 bins = np.linspace(0, max(Dp_sampled.max(), Dp_fitted.max()), 50) * spacing * 1e6
 plt.hist(Dp_fitted * spacing * 1e6, bins=bins, alpha=0.5, density=True, color='tab:purple', label='JAX')
 plt.hist(Dp_sampled * spacing * 1e6, bins=bins, alpha=0.5, density=True, color='tab:orange',  label='Sampled')
-plt.title(image + ' PSD', fontweight='semibold', fontsize=16)
-plt.xlabel('Pore Diameter (\u03BCm)', fontsize=14)
+plt.title(image + ' PSD', fontweight='semibold', fontsize=18)
+plt.xlabel('Pore Diameter (\u03BCm)', fontsize=18)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.xticks(fontsize=12)
-plt.yticks(fontsize=12)
-plt.legend(fontsize=12)
+plt.xticks(fontsize=18)
+plt.yticks(fontsize=18)
+plt.legend(fontsize=18, frameon=True)
 plt.savefig('../figures/sampled-psd-' + image + f'-{shape}' + '.png')
 plt.show()
 
@@ -324,17 +323,17 @@ plt.figure(2, dpi=500)
 ax = plt.gca()  # Get current axes
 # Make the bounding box bold
 for spine in ax.spines.values():
-    spine.set_linewidth(2)
-ax.tick_params(direction='in', length=5, width=2)
+    spine.set_linewidth(3)
+ax.tick_params(direction='in', length=6, width=3)
 bins = np.linspace(0, max(Dt_sampled.max(), Dt_fitted.max()), 50) * spacing * 1e6
 plt.hist(Dt_fitted * spacing * 1e6, bins=bins, alpha=0.5, density=True, color='tab:purple', label='JAX')
 plt.hist(Dt_sampled * spacing * 1e6, bins=bins, alpha=0.5, density=True, color='tab:orange', label='Sampled')
-plt.title(image + ' TSD', fontweight='semibold', fontsize=16)
-plt.xlabel('Throat Diameter (\u03BCm)', fontsize=14)
+plt.title(image + ' TSD', fontweight='semibold', fontsize=18)
+plt.xlabel('Throat Diameter (\u03BCm)', fontsize=18)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.xticks(fontsize=12)
-plt.yticks(fontsize=12)
-plt.legend(fontsize=12)
+plt.xticks(fontsize=18)
+plt.yticks(fontsize=18)
+plt.legend(fontsize=18, frameon=True)
 plt.savefig('../figures/sampled-tsd-' + image + f'-{shape}' + '.png')
 plt.show()
 
@@ -343,24 +342,24 @@ plt.figure(3, dpi=500)
 ax = plt.gca()  # Get current axes
 # Make the bounding box bold
 for spine in ax.spines.values():
-    spine.set_linewidth(2)
-ax.tick_params(direction='in', length=5, width=2)
+    spine.set_linewidth(3)
+ax.tick_params(direction='in', length=6, width=3)
 # Set x-axis to scientific notation
 ax.xaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
-ax.xaxis.get_offset_text().set_fontsize(14)  # Adjust offset text size
+ax.xaxis.get_offset_text().set_fontsize(18)  # Adjust offset text size
 ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))  # Force scientific notation 
 plt.plot(x_target, sat_s, label='GP', color='tab:orange', marker='o', markerfacecolor='none', markersize=9, linewidth=2.5)
 plt.plot(x_target, sat_n, label='No GP', color='tab:pink', marker='o', markerfacecolor='none', markersize=9, linewidth=2.5)
 plt.plot(x_target, sat_f, label='JAX', color='tab:purple', linestyle='--', marker='o', markerfacecolor='none', markersize=9, linewidth=2.5)
 plt.plot(x_target, sat_target, label='Target', color='tab:green', linestyle='--', marker='^', markerfacecolor='none', markersize=9, linewidth=2.5)
-plt.xlabel('Pressure (Pa)', fontsize=14)
-plt.ylabel('Saturation', fontsize=14)
-plt.xticks(fontsize=12)
-plt.yticks(fontsize=12)
-plt.title(image, fontsize=16, fontweight='semibold')
+plt.xlabel('Pressure (Pa)', fontsize=18)
+plt.ylabel('Saturation', fontsize=18)
+plt.xticks(fontsize=18)
+plt.yticks(fontsize=18)
+plt.title(image, fontsize=18, fontweight='semibold')
 plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.legend(loc='best', fontsize=12, frameon=True)
+plt.legend(loc='best', fontsize=18, frameon=True)
 plt.tight_layout()
 plt.savefig('../figures/sampled-porosimetrty-' + image + f'-{shape}' + '.png')
 plt.show()
@@ -370,20 +369,20 @@ plt.figure(4, dpi=500)
 ax = plt.gca()  # Get current axes
 # Make the bounding box bold
 for spine in ax.spines.values():
-    spine.set_linewidth(2)
-ax.tick_params(direction='in', length=5, width=2) 
+    spine.set_linewidth(3)
+ax.tick_params(direction='in', length=6, width=3) 
 x = jnp.arange(len(K_fitted))
 bar_width = 0.2
 plt.bar(x, K_target, width=bar_width, label='Target', color='tab:green')
 plt.bar(x + bar_width, K_fitted, width=bar_width, label='JAX', color='tab:purple')
 plt.bar(x + 2 * bar_width, K_sampled, width=bar_width, label='GP', color='tab:orange')
 plt.bar(x + 3 * bar_width, K_sampled_n, width=bar_width, label='No GP', color='tab:pink')
-plt.ylabel('Permeability (mD)', fontsize=14, fontweight='normal')
-plt.title(image, fontsize=16, fontweight='semibold')
-plt.xticks(x + bar_width*3/2, ['X', 'Y', 'Z', 'Avg'], fontsize=12, fontweight='normal')
-plt.yticks(fontsize=12, fontweight='normal')
+plt.ylabel('Permeability (mD)', fontsize=18, fontweight='normal')
+plt.title(image, fontsize=18, fontweight='semibold')
+plt.xticks(x + bar_width*3/2, ['X', 'Y', 'Z', 'Avg'], fontsize=18, fontweight='normal')
+plt.yticks(fontsize=18, fontweight='normal')
 plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07), ncol=4, fontsize=12, frameon=True)
+plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07), ncol=4, fontsize=14, frameon=True)
 plt.tight_layout()
 plt.savefig('../figures/sampled-permeability-' + image + f'-{shape}' + '.png')
 plt.show()

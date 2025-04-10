@@ -1,4 +1,3 @@
-print('importing')
 import os
 from jax import config
 import jax
@@ -13,12 +12,10 @@ import os
 
 os.environ["JAX_PLATFORMS"] = "cpu"
 config.update("jax_enable_x64", True)
-# config.update("jax_disable_jit", True)
 
 # create network
 spacing = 1e-3
 shape = [10, 10, 10]
-print('creating jax network')
 net = pnm.network.make_cubic_network(shape=shape, spacing=spacing)
 net['pore.boundary'] = net['pore.left']
 
@@ -26,35 +23,27 @@ net['pore.boundary'] = net['pore.left']
 Nt = len(net['throat.conns'])
 Np = len(net['pore.coords'])
 
-# get target diameters
-print('assigning diameters')
+# get diameters
 key = jax.random.PRNGKey(3)
-D_target = jax.random.uniform(key, shape=(Np,)) 
-# D_target = jnp.array([0.8, 0.6, 0.4, 0.3])
+D = jax.random.uniform(key, shape=(Np,)) 
 
 # add the adjacency matrix
-print('creating ad matrix')
 weights = jnp.arange(1, Nt+1)
 am = pnm.network.create_adjacency_matrix(net, weights=weights, fmt='csr')
 net['adjacency_matrix'] = am
 
 # create instance of FitCubicNetwork
-print('creating jax object')
-pressure = jnp.arange(0.1, 2/spacing, 0.01/spacing)
+pressure = jnp.arange(0.1, 2, 0.01)/spacing
 fcn = FitCubicNetwork(net, pressure=pressure, spacing=spacing, smoothing_factor=0)
 
 # add sat_target as attribute to fcn
-print('running jax invasion')
-sat_target = fcn.run_invasion(D_target)
-print('finished jax invasion')
+sat = fcn.run_invasion(D)
 
-fcn.sat_target = sat_target   
-
-
-print('filling openpnm arrays from JAX arrays')
+# create openpnm network object
 net_op = op.network.Cubic(shape=shape, spacing=spacing)
-net_op['pore.diameter'] = net['pore.diameter'] 
-# regenerate geometry models
+
+# add same geometry as jax network
+net_op['pore.diameter'] = net['pore.diameter']
 net_op['throat.diameter'] = net['throat.diameter']
 net_op['throat.length'] = net['throat.length']
 net_op['pore.volume'] = net['pore.volume'] 
@@ -63,50 +52,41 @@ net_op['throat.lens_volume'] = net['throat.lens_volume']
 props = ['throat.total_volume', 'throat.lens_volume']
 net_op['throat.volume'] = net['throat.volume']
 
-phs = op.phase.Phase(network=net_op)
+# create phase object
+phase = op.phase.Phase(network=net_op)
+
 # add entry pressure model
-phs['throat.contact_angle'] = 120
-phs['throat.surface_tension'] = 0.072
-
-print('creating phase object')
+phase['throat.contact_angle'] = 120
+phase['throat.surface_tension'] = 0.072
 f = op.models.physics.capillary_pressure.washburn
-phs.add_model(propname='throat.entry_pressure',
-              model=f,
-              )
-phs.regenerate_models()
-# print(phs['throat.entry_pressure'])
+phase.add_model(propname='throat.entry_pressure',
+              model=f)
+phase.regenerate_models()
 
-alg = op.algorithms.Drainage(phase=phs, network=net_op)
+# algorithm object
+alg = op.algorithms.Drainage(phase=phase, network=net_op)
 alg.set_inlet_BC(pores=net_op.pores('left'))
-print('starting openpnm....')
-pressure = np.arange(0.1, 2/spacing, 0.01/spacing)
+pressure = jnp.arange(0.1, 2, 0.01)/spacing
 alg.run(pressures=pressure)
 
+# get pc curve data
 data = alg.pc_curve(pressures=pressure)
-print('plotting')
-plt.figure(1)
 
 # plot target saturation
-plt.plot(pressure, sat_target, 'r', label='JAX')
-plt.step(data.pc, data.snwp, 'b', label='openpnm')
-plt.xlabel('Pressure [Pa]')
-plt.ylabel('Saturation')
-plt.title('shape=' + str(shape))
-# plt.xlabel('Capillary Pressure')
-# plt.ylabel('Non-Wetting Phase Saturation');
-plt.legend()
+plt.figure(1, dpi=500)
+ax = plt.gca()  # Get current axes
+# Make the bounding box bold
+for spine in ax.spines.values():
+    spine.set_linewidth(3)
+ax.tick_params(direction='in', length=6, width=3)
+plt.semilogx(pressure, sat, label='JAX', color='tab:purple', linewidth=8)
+plt.step(data.pc, data.snwp, label='OpenPNM', color='k', linestyle='solid', linewidth=3)
+plt.xlabel('Pressure (Pa)', fontsize=18)
+plt.ylabel('Saturation', fontsize=18)
+plt.grid(axis='x', linestyle='--', alpha=0.7)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.xticks(fontsize=18)
+plt.yticks(fontsize=18)
+plt.legend(frameon=True, fontsize=18)
+plt.savefig('../figures/validate_jaxPNM.png')
 plt.show()
-
-net_op['throat.entry_pressure'] = phs['throat.entry_pressure']
-
-current_directory = os.getcwd()
-path_to_file = current_directory
-op.io._vtk.project_to_vtk(net_op.project, filename=path_to_file+'/Paraview_net'+str(shape))
-
-
-
-
-
-
-
-

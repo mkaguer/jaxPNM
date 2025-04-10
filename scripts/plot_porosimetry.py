@@ -12,10 +12,18 @@ pc = data[:, 0]
 sw = data[:, 1]
 
 plt.figure(3)
-plt.semilogx(pc, sw, 'k-o', label='Image-Based')
-plt.legend(fontsize=16)
-plt.title(name, fontsize=18)
-plt.xlabel('Capillary Pressure (Pa)', fontsize=16)
-plt.ylabel('Saturation', fontsize=16)
+ax = plt.gca()  # Get current axes
+# Make the bounding box bold
+for spine in ax.spines.values():
+    spine.set_linewidth(3)
+ax.tick_params(direction='in', length=6, width=3) 
+plt.semilogx(pc, sw, 'k-o', label=name, linewidth=4, markersize=12)
+plt.legend(fontsize=18)
+plt.yticks(fontsize=18, fontweight='normal')
+plt.xticks(fontsize=18, fontweight='normal')
+# plt.xlabel('Capillary Pressure (Pa)', fontsize=18)
+plt.title('Saturation vs. Pressure (Pa)', fontsize=24, fontweight='semibold')
+plt.grid(axis='x', linestyle='--', alpha=0.7)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.savefig('../figures/porosimetry-' + name, dpi=500)
 plt.show()
