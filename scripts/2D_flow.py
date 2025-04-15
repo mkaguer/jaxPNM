@@ -5,7 +5,7 @@ np.random.seed(1)
 
 # create network
 spacing=1
-net = op.network.Cubic([15, 7, 1], spacing=1)
+net = op.network.Cubic([10, 10, 1], spacing=1)
 
 # add geometry models
 geo_mods = op.models.collections.geometry.spheres_and_cylinders.copy()
