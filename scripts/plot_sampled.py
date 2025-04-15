@@ -21,6 +21,7 @@ config.update("jax_enable_x64", False)
 
 image = "Berea"
 bw_method = 0.01
+BoT = 'BoT-'
 
 # set properties
 sigma = 0.4791
@@ -31,7 +32,7 @@ shape = [15, 15, 15] # [20, 15, 15]
 net_s = pnm.network.make_cubic_network(shape=shape, spacing=1)
 
 # load fitted network
-net_f = np.load('../networks/fitted-' + image + '.npz')
+net_f = np.load('../networks/fitted-' + BoT + image + '.npz')
 net_f = {key: jnp.array(net_f[key]) for key in net_f.files}
 
 # get Np and Nt
@@ -314,7 +315,8 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.xticks(fontsize=18)
 plt.yticks(fontsize=18)
 plt.legend(fontsize=18, frameon=True)
-plt.savefig('../figures/sampled-psd-' + image + f'-{shape}' + '.png')
+plt.tight_layout()
+plt.savefig('../figures/sampled-psd-' + BoT + image + f'-{shape}' + '.png')
 plt.show()
 
 # plot tsd distribution
@@ -334,7 +336,8 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.xticks(fontsize=18)
 plt.yticks(fontsize=18)
 plt.legend(fontsize=18, frameon=True)
-plt.savefig('../figures/sampled-tsd-' + image + f'-{shape}' + '.png')
+plt.tight_layout()
+plt.savefig('../figures/sampled-tsd-' + BoT + image + f'-{shape}' + '.png')
 plt.show()
 
 # plot pc results
@@ -361,7 +364,7 @@ plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(loc='best', fontsize=18, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/sampled-porosimetrty-' + image + f'-{shape}' + '.png')
+plt.savefig('../figures/sampled-porosimetrty-' + BoT + image + f'-{shape}' + '.png')
 plt.show()
 
 # plot K results
@@ -384,7 +387,7 @@ plt.yticks(fontsize=18, fontweight='normal')
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07), ncol=4, fontsize=14, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/sampled-permeability-' + image + f'-{shape}' + '.png')
+plt.savefig('../figures/sampled-permeability-' + BoT + image + f'-{shape}' + '.png')
 plt.show()
 
 # save sampled network
@@ -400,4 +403,4 @@ for key in net_s.keys():
 dic['pore.diameter'] = Dp_sampled
 dic['throat.tsf'] = tsf_sampled
 
-np.savez_compressed("../networks/sampled-" + image + f'-{shape}' + ".npz", **dic)
+np.savez_compressed("../networks/sampled-" + BoT + image + f'-{shape}' + ".npz", **dic)

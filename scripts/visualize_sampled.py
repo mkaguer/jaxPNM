@@ -2,11 +2,12 @@ import numpy as np
 import openpnm as op
 
 image = "Berea"
+BoT = "BoT-"
 
 shape = [15, 15, 15]
 
 # load sampled network
-data = np.load('../networks/sampled-' + image + f'-{shape}' + '.npz')
+data = np.load('../networks/sampled-' + BoT + image + f'-{shape}' + '.npz')
 data = {key: np.array(data[key]) for key in data.files}
 
 # create a new clearn network from data
@@ -28,7 +29,7 @@ tsf = data['throat.tsf']
 net_s['throat.diameter'] = tsf * np.min(D[conns], axis=1)
 
 # load fitted network
-data = np.load('../networks/fitted-' + image + '.npz')
+data = np.load('../networks/fitted-' + BoT + image + '.npz')
 data = {key: np.array(data[key]) for key in data.files}
 
 # create a new clearn network from data
@@ -128,10 +129,10 @@ drn_f.run(pressures=pressures)
 pn_s['throat.radius'] = pn_s['throat.diameter']/2
 pn_s['pore.invasion_sequence'] = drn_s['pore.invasion_sequence']
 pn_s['throat.invasion_sequence'] = drn_s['throat.invasion_sequence']
-op.io.project_to_vtk(project=pn_s.project, filename='../paraview/network-' + image + '-sampled')
+op.io.project_to_vtk(project=pn_s.project, filename='../paraview/network-' + BoT + image + '-sampled')
 
 # save fitted network
 pn_f['throat.radius'] = pn_f['throat.diameter']/2
 pn_f['pore.invasion_sequence'] = drn_f['pore.invasion_sequence']
 pn_f['throat.invasion_sequence'] = drn_f['throat.invasion_sequence']
-op.io.project_to_vtk(project=pn_f.project, filename='../paraview/network-' + image + '-fitted')
+op.io.project_to_vtk(project=pn_f.project, filename='../paraview/network-' + BoT + image + '-fitted')

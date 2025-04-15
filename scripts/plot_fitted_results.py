@@ -13,14 +13,15 @@ config.update("jax_enable_x64", False)
 
 # ps.visualization.set_mpl_style()
 
-image = "S9"
+image = "A1"
+BoT = 'BoT-'
 
 # set properties
 sigma = 0.4791
 theta = 140
 
 # load fitted network
-net = np.load('../networks/fitted-' + image + '.npz')
+net = np.load('../networks/fitted-' + BoT + image + '.npz')
 net = {key: net[key] for key in net.files}
 
 # get Np and Nt
@@ -106,7 +107,7 @@ plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(loc='best', fontsize=18)
 plt.tight_layout()
-plt.savefig('../figures/fitted-porosimetrty-' + image + '.png')
+plt.savefig('../figures/fitted-porosimetrty-' + BoT + image + '.png')
 plt.show()
 
 # run flow and calculate K for fitted D
@@ -155,5 +156,5 @@ plt.yticks(fontsize=18, fontweight='normal')
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07), ncol=3, fontsize=16, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/fitted-permeability-' + image + '.png')
+plt.savefig('../figures/fitted-permeability-' + BoT + image + '.png')
 plt.show()
