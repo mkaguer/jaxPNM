@@ -90,3 +90,9 @@ plt.yticks(fontsize=18)
 plt.legend(frameon=True, fontsize=18)
 plt.savefig('../figures/validate_jaxPNM.png')
 plt.show()
+
+# calculate sse
+y_true = data.snwp
+y_test = sat
+sse = np.sum((y_test - y_true)**2)
+print(f"SSE: {sse}")
