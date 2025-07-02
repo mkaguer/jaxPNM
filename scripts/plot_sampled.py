@@ -13,6 +13,7 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from scipy.spatial import cKDTree
 import jax
 import pandas as pd
+import time
 
 np.random.seed(0)
 
@@ -192,8 +193,11 @@ Dp_kde = kde.resample(Np_s)[0]  # this is a numpy array!
 # fit GP to Dp and coords_f
 kernel = C(1.0) * RBF(length_scale=0.05)
 gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=0)
+start = time.time()
 gp.fit(coords_f, Dp_fitted)
-print('Finished GP Dp fit')
+stop = time.time()
+print(f"Finished GP Dp fit in {stop - start}s")
+print(gp.kernel_)
 
 # sample from GP
 tree = cKDTree(coords_f)
@@ -217,9 +221,12 @@ tsf_kde = kde.resample(Nt_s)[0]  # this is a numpy array
 # fit GP to tsf and sample
 kernel = C(1.0) * RBF(length_scale=0.05)
 gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=0)
-X_train = np.hstack([coords_f[conns_f[:, 0]], coords_f[conns_f[:, 1]]]) 
+X_train = np.hstack([coords_f[conns_f[:, 0]], coords_f[conns_f[:, 1]]])
+start = time.time() 
 gp.fit(X_train, tsf_fitted)
-print('Finished GP Dt fit')
+stop = time.time()
+print(f"Finished GP Dt fit in {stop - start}s")
+print(gp.kernel_)
 
 X_pred = np.hstack([coords_s[conns_s[:, 0]], coords_s[conns_s[:, 1]]]) 
 tsf_gp, _ = gp.predict(X_pred, return_std=True)
