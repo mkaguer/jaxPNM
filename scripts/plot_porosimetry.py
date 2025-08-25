@@ -5,8 +5,13 @@ import matplotlib.pyplot as plt
 ps.visualization.set_mpl_style()
 np.random.seed(10)
 
-name = 'S9'
-data = np.loadtxt('../data/porosimetry-' + name + '.csv', delimiter=",")
+equivalent = True
+
+name = 'A1'
+if equivalent is True:
+    data = np.loadtxt('../data/porosimetry-eq-' + name + '.csv', delimiter=",")
+else:
+    data = np.loadtxt('../data/porosimetry-' + name + '.csv', delimiter=",")
 
 pc = data[:, 0]
 sw = data[:, 1]
@@ -25,5 +30,8 @@ plt.xticks(fontsize=18, fontweight='normal')
 plt.title('Saturation vs. Pressure (Pa)', fontsize=24, fontweight='semibold')
 plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.savefig('../figures/porosimetry-' + name, dpi=500)
+if equivalent is True:
+    plt.savefig('../figures/porosimetry-eq-' + name, dpi=500)
+else:
+    plt.savefig('../figures/porosimetry-' + name, dpi=500)
 plt.show()
