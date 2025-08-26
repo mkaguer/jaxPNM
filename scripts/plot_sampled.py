@@ -15,14 +15,15 @@ import jax
 import pandas as pd
 import time
 
-np.random.seed(0)
+np.random.seed(2)  # Berea 1, A1 0, C2 2
 
 os.environ["JAX_PLATFORMS"] = "cpu"
 config.update("jax_enable_x64", False)
 
-image = "Berea"
+image = "C2"
 bw_method = 0.01
 BoT = 'BoT-'
+equivalent = True
 
 # set properties
 sigma = 0.4791
@@ -33,8 +34,12 @@ shape = [15, 15, 15] # [20, 15, 15]
 net_s = pnm.network.make_cubic_network(shape=shape, spacing=1)
 
 # load fitted network
-net_f = np.load('../networks/fitted-' + BoT + image + '.npz')
-net_f = {key: jnp.array(net_f[key]) for key in net_f.files}
+if equivalent is True:
+    net_f = np.load('../networks/fitted-eq-' + BoT + image + '.npz')
+    net_f = {key: jnp.array(net_f[key]) for key in net_f.files}
+else:
+    net_f = np.load('../networks/fitted-' + BoT + image + '.npz')
+    net_f = {key: jnp.array(net_f[key]) for key in net_f.files}
 
 # get Np and Nt
 Np_s = len(net_s['pore.coords'])
@@ -64,10 +69,16 @@ indptr = net_f['am.indptr']
 net_f['adjacency_matrix'] = js.BCSR((data, indices, indptr), shape=(Np_f, Np_f))
 
 # load porosimetry data
-data = np.loadtxt('../data/porosimetry-' + image + '.csv', delimiter=',')
-mask = ~np.isinf(data[:, 0])
-sat_target = jnp.array(data[:, 1][mask]).astype(jnp.float32)
-x_target = jnp.array(data[:, 0][mask]).astype(jnp.float32)
+if equivalent is True:
+    data = np.loadtxt('../data/porosimetry-eq-' + image + '.csv', delimiter=',')
+    mask = ~np.isinf(data[:, 0])
+    sat_target = jnp.array(data[:, 1][mask]).astype(jnp.float32)
+    x_target = jnp.array(data[:, 0][mask]).astype(jnp.float32)
+else:
+    data = np.loadtxt('../data/porosimetry-' + image + '.csv', delimiter=',')
+    mask = ~np.isinf(data[:, 0])
+    sat_target = jnp.array(data[:, 1][mask]).astype(jnp.float32)
+    x_target = jnp.array(data[:, 0][mask]).astype(jnp.float32)
 
 # calculate spacing
 Dp = -4*sigma*jnp.cos(theta*jnp.pi/180)/x_target
@@ -135,6 +146,10 @@ net_s['rate_poresz'] = pores
 del net_s['pore.bc.value'], net_s['pore.bc.mask'], net_s['boundary_pores']
 
 # create fcn objects
+if equivalent is True:
+    sf=0.4
+else:
+    sf=0.4
 pressures = jnp.arange(jnp.min(x_target)*0.9, jnp.max(x_target)*1.1, 1e3)
 fcn_s = FitCubicNetwork(net_s,
                         surface_tension=sigma,
@@ -143,7 +158,7 @@ fcn_s = FitCubicNetwork(net_s,
                         x_target=x_target,
                         pressure=pressures,
                         spacing=1,
-                        smoothing_factor=0.4)
+                        smoothing_factor=sf)
 fcn_f = FitCubicNetwork(net_f,
                         surface_tension=sigma,
                         contact_angle=theta,
@@ -151,7 +166,7 @@ fcn_f = FitCubicNetwork(net_f,
                         x_target=x_target,
                         pressure=pressures,
                         spacing=1,
-                        smoothing_factor=0.4)
+                        smoothing_factor=sf)
 
 # pre-process pressures (b/c D is btwn 0 and 1, spacing set as 1)
 fcn_s.process_pressure(spacing=spacing, mode='pre')
@@ -323,7 +338,10 @@ plt.xticks(fontsize=18)
 plt.yticks(fontsize=18)
 plt.legend(fontsize=18, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/sampled-psd-' + BoT + image + f'-{shape}' + '.png')
+if equivalent is True:
+    plt.savefig('../figures/sampled-psd-eq-' + BoT + image + f'-{shape}' + '.png')
+else:
+    plt.savefig('../figures/sampled-psd-' + BoT + image + f'-{shape}' + '.png')
 plt.show()
 
 # plot tsd distribution
@@ -344,7 +362,10 @@ plt.xticks(fontsize=18)
 plt.yticks(fontsize=18)
 plt.legend(fontsize=18, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/sampled-tsd-' + BoT + image + f'-{shape}' + '.png')
+if equivalent is True:
+    plt.savefig('../figures/sampled-tsd-eq-' + BoT + image + f'-{shape}' + '.png')
+else:
+    plt.savefig('../figures/sampled-tsd-' + BoT + image + f'-{shape}' + '.png')
 plt.show()
 
 # plot pc results
@@ -371,7 +392,10 @@ plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(loc='best', fontsize=18, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/sampled-porosimetrty-' + BoT + image + f'-{shape}' + '.png')
+if equivalent is True:
+    plt.savefig('../figures/sampled-porosimetrty-eq-' + BoT + image + f'-{shape}' + '.png')
+else:
+    plt.savefig('../figures/sampled-porosimetrty-' + BoT + image + f'-{shape}' + '.png')
 plt.show()
 
 # plot K results
@@ -394,7 +418,10 @@ plt.yticks(fontsize=18, fontweight='normal')
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07), ncol=4, fontsize=14, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/sampled-permeability-' + BoT + image + f'-{shape}' + '.png')
+if equivalent is True:
+    plt.savefig('../figures/sampled-permeability-eq-' + BoT + image + f'-{shape}' + '.png')
+else:
+    plt.savefig('../figures/sampled-permeability-' + BoT + image + f'-{shape}' + '.png')
 plt.show()
 
 # save sampled network
@@ -410,4 +437,7 @@ for key in net_s.keys():
 dic['pore.diameter'] = Dp_sampled
 dic['throat.tsf'] = tsf_sampled
 
-np.savez_compressed("../networks/sampled-" + BoT + image + f'-{shape}' + ".npz", **dic)
+if equivalent is True:
+    np.savez_compressed("../networks/sampled-eq-" + BoT + image + f'-{shape}' + ".npz", **dic)
+else:
+    np.savez_compressed("../networks/sampled-" + BoT + image + f'-{shape}' + ".npz", **dic)
