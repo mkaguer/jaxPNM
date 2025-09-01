@@ -13,26 +13,37 @@ config.update("jax_enable_x64", False)
 
 # ps.visualization.set_mpl_style()
 
-image = "A1"
+image = "Experiment"
 BoT = 'BoT-'
+equivalent = False
 
 # set properties
 sigma = 0.4791
 theta = 140
 
 # load fitted network
-net = np.load('../networks/fitted-' + BoT + image + '.npz')
-net = {key: net[key] for key in net.files}
+if equivalent is True:
+    net = np.load('../networks/fitted-eq-' + BoT + image + '.npz')
+    net = {key: net[key] for key in net.files}
+else:
+    net = np.load('../networks/fitted-' + BoT + image + '.npz')
+    net = {key: net[key] for key in net.files}
 
 # get Np and Nt
 Np = len(net['pore.coords'])
 Nt = len(net['throat.conns'])
 
 # load porosimetry data
-data = np.loadtxt('../data/porosimetry-' + image + '.csv', delimiter=',')
-mask = ~np.isinf(data[:, 0])
-sat_target = jnp.array(data[:, 1][mask]).astype(jnp.float32)
-x_target = jnp.array(data[:, 0][mask]).astype(jnp.float32)
+if equivalent is True:
+    data = np.loadtxt('../data/porosimetry-eq-' + image + '.csv', delimiter=',')
+    mask = ~np.isinf(data[:, 0])
+    sat_target = jnp.array(data[:, 1][mask]).astype(jnp.float32)
+    x_target = jnp.array(data[:, 0][mask]).astype(jnp.float32)
+else:
+    data = np.loadtxt('../data/porosimetry-' + image + '.csv', delimiter=',')
+    mask = ~np.isinf(data[:, 0])
+    sat_target = jnp.array(data[:, 1][mask]).astype(jnp.float32)
+    x_target = jnp.array(data[:, 0][mask]).astype(jnp.float32)
 
 # calculate spacing
 Dp = -4*sigma*jnp.cos(theta*jnp.pi/180)/x_target
@@ -54,6 +65,10 @@ indptr = net['am.indptr']
 net['adjacency_matrix'] = js.BCSR((data, indices, indptr), shape=(Np, Np))
 
 # create fcn object
+if equivalent is True:
+    sf = 0.4
+else:
+    sf = 0.4
 pressures = jnp.arange(jnp.min(x_target)*0.9, jnp.max(x_target)*1.1, 1e3)
 fcn = FitCubicNetwork(net,
                       surface_tension=sigma,
@@ -63,7 +78,7 @@ fcn = FitCubicNetwork(net,
                       K_target=K_target,
                       pressure=pressures,
                       spacing=1,
-                      smoothing_factor=0.4)
+                      smoothing_factor=sf)
 
 # pre-process pressures (b/c D is btwn 0 and 1, spacing set as 1)
 fcn.process_pressure(spacing=spacing, mode='pre')
@@ -105,9 +120,12 @@ plt.yticks(fontsize=18)
 plt.title(image, fontsize=18, fontweight='semibold')
 plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.legend(loc='best', fontsize=18)
+plt.legend(loc='best', fontsize=18, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/fitted-porosimetrty-' + BoT + image + '.png')
+if equivalent is True:
+    plt.savefig('../figures/fitted-porosimetrty-eq-' + BoT + image + '.png')
+else:
+    plt.savefig('../figures/fitted-porosimetrty-' + BoT + image + '.png')
 plt.show()
 
 # run flow and calculate K for fitted D
@@ -153,8 +171,12 @@ plt.ylabel('Permeability (mD)', fontsize=18, fontweight='normal')
 plt.title(image, fontsize=18, fontweight='semibold')
 plt.xticks(x + bar_width, ['X', 'Y', 'Z', 'Avg'], fontsize=18, fontweight='normal')
 plt.yticks(fontsize=18, fontweight='normal')
+plt.ylim([0, 1300])
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07), ncol=3, fontsize=16, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/fitted-permeability-' + BoT + image + '.png')
+if equivalent is True:
+    plt.savefig('../figures/fitted-permeability-eq-' + BoT + image + '.png')
+else:
+    plt.savefig('../figures/fitted-permeability-' + BoT + image + '.png')
 plt.show()

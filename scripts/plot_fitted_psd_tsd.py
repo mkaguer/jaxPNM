@@ -4,24 +4,36 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.stats import rv_discrete
 
-image = 'A1'
+image = 'S5'
+BoT = 'BoT-'
+equivalent = False
 
 # set properties
 sigma = 0.4791
 theta = 140
 
 # load fitted network
-net_f = np.load('../networks/fitted-' + image + '.npz')
-net_f = {key: net_f[key] for key in net_f.files}
+if equivalent is True:
+    net_f = np.load('../networks/fitted-eq-' + BoT + image + '.npz')
+    net_f = {key: net_f[key] for key in net_f.files}
+else:
+    net_f = np.load('../networks/fitted-' + BoT + image + '.npz')
+    net_f = {key: net_f[key] for key in net_f.files}
 
 # load network extraction
 net_s = op.io.network_from_csv('../networks/' + image + '-snow' + '.csv')
 
 # load porosimetry data
-data = np.loadtxt('../data/porosimetry-' + image + '.csv', delimiter=',')
-mask = ~np.isinf(data[:, 0])
-sat_target = np.array(data[:, 1][mask]).astype(np.float32)
-x_target = np.array(data[:, 0][mask]).astype(np.float32)
+if equivalent is True:
+    data = np.loadtxt('../data/porosimetry-eq-' + image + '.csv', delimiter=',')
+    mask = ~np.isinf(data[:, 0])
+    sat_target = np.array(data[:, 1][mask]).astype(np.float32)
+    x_target = np.array(data[:, 0][mask]).astype(np.float32)
+else:
+    data = np.loadtxt('../data/porosimetry-' + image + '.csv', delimiter=',')
+    mask = ~np.isinf(data[:, 0])
+    sat_target = np.array(data[:, 1][mask]).astype(np.float32)
+    x_target = np.array(data[:, 0][mask]).astype(np.float32)
 
 # calculate spacing
 Dp = -4*sigma*np.cos(theta*np.pi/180)/x_target
@@ -77,7 +89,10 @@ plt.xticks(fontsize=18)
 plt.yticks(fontsize=18)
 plt.legend(fontsize=18, frameon=True)
 plt.tight_layout()
-plt.savefig('../figures/fitted-psd-' + image + '.png')
+if equivalent is True:
+    plt.savefig('../figures/fitted-psd-eq-' + image + '.png')
+else:
+    plt.savefig('../figures/fitted-psd-' + image + '.png')
 plt.show()
 
 # plt tsd
@@ -98,5 +113,8 @@ plt.xticks(fontsize=18)
 plt.yticks(fontsize=18)
 plt.legend(fontsize=18)
 plt.tight_layout()
-plt.savefig('../figures/fitted-tsd-' + image + '.png')
+if equivalent is True:
+    plt.savefig('../figures/fitted-tsd-eq-' + image + '.png')
+else:
+    plt.savefig('../figures/fitted-tsd-' + image + '.png')
 plt.show()
