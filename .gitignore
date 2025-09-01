@@ -3,6 +3,7 @@
 *.txt
 *.pptx
 *.xlsx
+*.png
 /images/*
 /notebooks/*
 /figures/*
