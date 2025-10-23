@@ -281,6 +281,7 @@ class FitCubicNetwork:
         w = jnp.max(coords[:, 1]) - jnp.min(coords[:, 1]) + spacing
         h = jnp.max(coords[:, 2]) - jnp.min(coords[:, 2]) + spacing
         # calculate area perpendicular to flow, assumes flow in x-direction
+        # FIXME: not exactly right in z, y directions
         A = w * h
         # get deltaP
         P1 = jnp.max(net['pore.bc.value' + axis][net['pore.bc.mask' + axis]])
@@ -746,8 +747,8 @@ class FitCubicNetwork:
             return 1 - jnp.exp(- (x / scale) ** shape)
 
         # Compute the CDF values at the truncation bounds
-        min_seed = weibull_cdf(1e-3, shape, scale)
-        max_seed = weibull_cdf(1.0, shape, scale)
+        min_seed = weibull_cdf(1e-2, shape, scale)
+        max_seed = weibull_cdf(0.99, shape, scale)
         # Generate uniform samples in [min_cdf, max_cdf]
         u_samples = jax.random.uniform(key,
                                        shape=(num_samples,),
