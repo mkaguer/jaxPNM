@@ -10,7 +10,8 @@ from _fit_cubic_network import FitCubicNetwork
 os.environ["JAX_PLATFORMS"] = "cpu"
 config.update("jax_enable_x64", True)
 
-ps.visualization.set_mpl_style()
+# ps.visualization.set_mpl_style()
+op.visualization.set_mpl_style()
 
 np.random.seed(1)
 
@@ -106,7 +107,9 @@ print(f'Kx_jax is: {Kx_j:.5f} mD')
 mask = net_j['pore.left'] + net_j['pore.right']
 mask = ~mask  # mask out boundary when calculating error
 error = jnp.average(jnp.abs(x[mask]-flow_x.x[mask])/flow_x.x[mask])
+sse = jnp.sum((x[mask]-flow_x.x[mask])**2)
 print(f'Avg Error: {error*100}%')
+print(f'SSE: {sse}%')
 
 # Reasons why they are not the same:
 # 1) Rounding is different. For some reason, Ft is slightly rounded

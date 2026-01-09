@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import porespy as ps
+# import porespy as ps
 
-ps.visualization.set_mpl_style()
+# ps.visualization.set_mpl_style()
 
 # import data
 data = np.loadtxt(fname="../data/churcher_fig15.csv", delimiter=",", skiprows=1)
@@ -25,7 +25,7 @@ ax = plt.gca()  # Get current axes
 for spine in ax.spines.values():
     spine.set_linewidth(3)
 ax.tick_params(direction='in', length=6, width=3) 
-plt.semilogx(data[:, 1], data[:, 0], 'k-o', label="Churcher et al.", linewidth=4, markersize=12)
+plt.semilogx(data[:, 1], data[:, 0], 'k-o', label="Churchel et al.", linewidth=4, markersize=12)
 plt.semilogx(pc, sat, 'g-o', label="Target", linewidth=4, markersize=12, markerfacecolor="white")
 plt.legend(fontsize=18, frameon=True)
 plt.yticks(fontsize=18, fontweight='normal')
