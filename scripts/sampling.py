@@ -1,13 +1,13 @@
 import openpnm as op
-import porespy as ps
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import gaussian_kde
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from scipy.spatial import cKDTree
+import time
 
-ps.visualization.set_mpl_style()
+op.visualization.set_mpl_style()
 
 np.random.seed(1)
 
@@ -76,8 +76,10 @@ Dp_kde = kde.resample(Np)[0]
 # fit GP to D and coords_f
 kernel = C(1.0) * RBF(length_scale=0.05)
 gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=0)
+start = time.time()
 gp.fit(coords_f, Dp)
-print('Finished GP Dp fit')
+stop = time.time()
+print(f"Finished GP Dp fit in {stop - start}s")
 
 # sample from GP
 tree = cKDTree(coords_f)
@@ -100,11 +102,16 @@ tsf_kde = kde.resample(Nt)[0]
 kernel = C(1.0) * RBF(length_scale=0.05)
 X_train = np.hstack([coords_f[conns_f[:, 0]], coords_f[conns_f[:, 1]]]) 
 gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=0)
+start = time.time()
 gp.fit(X_train, tsf)
-print('Finished GP tsf fit')
+stop = time.time()
+print(f"Finished GP tsf fit in {stop - start}s")
 
 X_pred = np.hstack([coords_s[conns_s[:, 0]], coords_s[conns_s[:, 1]]]) 
+start = time.time()
 tsf_gp, _ = gp.predict(X_pred, return_std=True)
+stop = time.time()
+print(f"Time to predict GP throat size: {stop - start}s")
 
 # sort to preserve spatial trends
 indices = np.argsort(tsf_gp)
