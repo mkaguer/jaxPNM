@@ -4,6 +4,7 @@
 *.pptx
 *.xlsx
 *.png
+/writing/*
 /images/*
 /notebooks/*
 /figures/*
